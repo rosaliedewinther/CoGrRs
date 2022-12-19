@@ -1,7 +1,7 @@
-use crate::gpu_context::GpuContext;
+use crate::Context;
 
 pub fn init_texture(
-    gpu_context: &GpuContext,
+    gpu_context: &Context,
     texture_name: &str,
     width: u32,
     height: u32,

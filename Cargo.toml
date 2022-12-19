@@ -5,3 +5,12 @@ members = [
     "crates/ui"
 ]
 resolver = "2"
+
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.65"
+keywords = ["graphics"]
+repository = "https://github.com/jasperdewinther/CoGrRs"
+version = "0.1.0"
+

@@ -1,4 +1,3 @@
-use crate::gpu_context::GpuContext;
 use inline_spirv::include_spirv;
 use wgpu::util::DeviceExt;
 
@@ -13,7 +12,8 @@ impl ToScreenPipeline {
     pub fn new(device: &wgpu::Device, screen_texture: &wgpu::TextureView) -> Self {
         let (index_buffer, num_indices) = ToScreenPipeline::init_primitives(device);
 
-        let (bindgroup, bindgroup_layout) = ToScreenPipeline::init_bindgroup(device, screen_texture);
+        let (bindgroup, bindgroup_layout) =
+            ToScreenPipeline::init_bindgroup(device, screen_texture);
         let pipeline = ToScreenPipeline::init_pipeline(device, &bindgroup_layout);
 
         ToScreenPipeline {
@@ -24,25 +24,37 @@ impl ToScreenPipeline {
         }
     }
 
-    fn init_pipeline(device: &wgpu::Device, bindgroup_layout: &wgpu::BindGroupLayout) -> wgpu::RenderPipeline {
+    fn init_pipeline(
+        device: &wgpu::Device,
+        bindgroup_layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::RenderPipeline {
         let f_shader = unsafe {
             device.create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
                 label: Some("../../shaders/to_screen.frag"),
-                source: std::borrow::Cow::Borrowed(include_spirv!("../../shaders/to_screen.frag", frag, vulkan1_2)),
+                source: std::borrow::Cow::Borrowed(include_spirv!(
+                    "shaders/to_screen.frag",
+                    frag,
+                    vulkan1_2
+                )),
             })
         };
 
         let v_shader = unsafe {
             device.create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
                 label: Some("../../shaders/to_screen.vert"),
-                source: std::borrow::Cow::Borrowed(include_spirv!("../../shaders/to_screen.vert", vert, vulkan1_2)),
+                source: std::borrow::Cow::Borrowed(include_spirv!(
+                    "shaders/to_screen.vert",
+                    vert,
+                    vulkan1_2
+                )),
             })
         };
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[bindgroup_layout],
-            push_constant_ranges: &[],
-        });
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[bindgroup_layout],
+                push_constant_ranges: &[],
+            });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -85,7 +97,10 @@ impl ToScreenPipeline {
         render_pipeline
     }
 
-    fn init_bindgroup(device: &wgpu::Device, texture_view: &wgpu::TextureView) -> (wgpu::BindGroup, wgpu::BindGroupLayout) {
+    fn init_bindgroup(
+        device: &wgpu::Device,
+        texture_view: &wgpu::TextureView,
+    ) -> (wgpu::BindGroup, wgpu::BindGroupLayout) {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("texture_bind_group_layout_to_screen"),
             entries: &[wgpu::BindGroupLayoutEntry {
