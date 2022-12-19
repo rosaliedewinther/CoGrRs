@@ -23,7 +23,11 @@ struct GpuData {
 
 impl Game for HelloSine {
     fn on_init(window: &Window) -> Self {
-        let mut gpu_context = Context::new(window, "to_draw_texture", "examples/hello_sine/");
+        let mut gpu_context = Context::new(
+            window,
+            "to_draw_texture",
+            "crates/CoGrRs/examples/hello_sine/",
+        );
 
         gpu_context.texture("to_draw_texture", (1280, 720, 1), Rgba8Unorm);
         gpu_context.pipeline("sine", [], PerPixel2D);
