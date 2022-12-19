@@ -9,6 +9,7 @@ edition = "2021"
 gpu = {path = "../gpu"}
 ui = {path = "../ui"}
 window = {path = "../window"}
+bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
 
 
 [[example]]
