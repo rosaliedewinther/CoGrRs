@@ -25,19 +25,19 @@ pub fn init_texture(
     };
     let texture = gpu_context.device.create_texture(&wgpu::TextureDescriptor {
         label: Some(texture_name),
+        format,
         size: texture_size,
         mip_level_count: 1,
         sample_count: 1,
         dimension: texture_dimension,
-        format,
         usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
     });
     let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
         label: Some(&(texture_name.to_string() + "_view")),
         format: Some(format),
         dimension: Some(texture_view_dimension),
-        aspect: Default::default(),
         base_mip_level: 0,
+        aspect: Default::default(),
         mip_level_count: None,
         base_array_layer: 0,
         array_layer_count: None,
