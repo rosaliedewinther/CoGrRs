@@ -1,0 +1,21 @@
+[package]
+name = "gpu"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+winit = {version = "0.27", default-features = false}
+wgpu = {version = "0.14", default-features = false, features = ["spirv"]}
+num = {version = "0.4", default-features = false}
+pollster = {version = "0.2", default-features = false}
+bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
+inline-spirv = {version = "0.1", default-features = false, features = ["glsl"]}
+futures-intrusive = "0.5"
+inline-spirv-runtime = {path = "../../submodules/inline-spirv-runtime-rs"}
+log = {version = "0.4", default-features = false}
+rspirv-reflect = "0.7"
+fxhash = "0.2"
+serde_yaml = "0.9"
+regex = "1.7"
