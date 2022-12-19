@@ -1,4 +1,4 @@
-use std::error::Error;
+
 use std::time::Instant;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::error::OsError;

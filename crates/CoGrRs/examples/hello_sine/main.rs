@@ -4,7 +4,7 @@ use gpu::Context;
 use gpu::Execution::PerPixel2D;
 use ui::MainGui;
 use window::{
-    input::{button::ButtonState, Input},
+    input::{Input},
     main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
     winit::window::Window,
 };
