@@ -1,10 +1,11 @@
+use shader::Shader;
 pub use wgpu;
 
 mod buffer;
 mod compute_pipeline;
+mod shader;
 mod texture;
 mod to_screen_pipeline;
-mod vertex;
 
 use crate::compute_pipeline::ComputePipeline;
 use std::{cmp::max, collections::HashMap, num::NonZeroU32, path::Path};
@@ -18,6 +19,8 @@ use wgpu::{
     util::DeviceExt, CommandEncoder, Extent3d, ImageCopyBuffer, ImageCopyTexture, ImageDataLayout,
     TextureViewDimension,
 };
+
+use wgpu::IndexFormat::Uint16;
 
 use crate::{
     buffer::init_storage_buffer, compute_pipeline::TextureOrBuffer, texture::init_texture,
@@ -153,7 +156,7 @@ impl Context {
     }
 
     pub fn image_buffer_to_screen(&self, encoder: &mut wgpu::CommandEncoder) {
-        let mut _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: self
@@ -168,21 +171,15 @@ impl Context {
             })],
             depth_stencil_attachment: None,
         });
-        _render_pass.set_pipeline(&self.to_screen_pipeline.as_ref().unwrap().pipeline); // 2.
-        _render_pass.set_bind_group(0, &self.to_screen_pipeline.as_ref().unwrap().bindgroup, &[]);
-        _render_pass.set_index_buffer(
-            self.to_screen_pipeline
-                .as_ref()
-                .unwrap()
-                .index_buffer
-                .slice(..),
-            wgpu::IndexFormat::Uint16,
-        );
-        _render_pass.draw_indexed(
-            0..self.to_screen_pipeline.as_ref().unwrap().num_indices,
-            0,
-            0..1,
-        );
+        match &self.to_screen_pipeline {
+            Some(pipeline) => {
+                render_pass.set_pipeline(&pipeline.pipeline); // 2.
+                render_pass.set_bind_group(0, &pipeline.bindgroup, &[]);
+                render_pass.set_index_buffer(pipeline.index_buffer.slice(..), Uint16);
+                render_pass.draw_indexed(0..pipeline.num_indices, 0, 0..1);
+            }
+            None => panic!("to_screen_pipeline is not available"),
+        }
     }
 
     pub fn execute_encoder(&mut self, encoder: wgpu::CommandEncoder) {
@@ -255,115 +252,68 @@ impl Context {
             return;
         }
 
-        let mut cfg = inline_spirv_runtime::ShaderCompilationConfig::default();
-        cfg.debug = match cfg!(debug_assertions) {
-            true => true,
-            false => false,
-        };
-        cfg.kind = ShaderKind::Compute;
+        let shader = Shader::get_shader_properties(shader_name, &self.shaders_folder, flags);
 
-        let shader_file = self.shaders_folder.clone() + shader_name + ".comp";
-        flags
+        let execution_mode = match execution_mode {
+            Execution::PerPixel1D => (
+                (self.size.width * self.size.height + shader.cg_x - 1) / shader.cg_x,
+                1u32,
+                1u32,
+            ),
+            Execution::PerPixel2D => (
+                (self.size.width + shader.cg_x - 1) / shader.cg_x,
+                (self.size.height + shader.cg_y - 1) / shader.cg_y,
+                1,
+            ),
+            Execution::N3D(n) => (
+                (n + shader.cg_x - 1) / shader.cg_x,
+                (n + shader.cg_y - 1) / shader.cg_y,
+                (n + shader.cg_z - 1) / shader.cg_z,
+            ),
+            Execution::N1D(n) => ((n + shader.cg_x - 1) / shader.cg_x, 1, 1),
+        };
+
+        let bindings = shader
+            .bindings
             .iter()
-            .for_each(|flag| cfg.defs.push((flag.to_string(), None)));
-
-        let shader_slice: Vec<u32> = inline_spirv_runtime::runtime_compile(
-            &std::fs::read_to_string(&shader_file)
-                .expect(&format!("Could not find {}", shader_file)),
-            Some(&(shader_file)),
-            &cfg,
-        )
-        .map_err(|e| println!("{}", e))
-        .unwrap_or_else(|_| panic!("could not compile shader: {}", shader_name))
-        .as_slice()
-        .into_iter()
-        .map(|val| *val)
-        .collect();
-
-        let shader: &[u8] = cast_slice(&shader_slice);
-        let reflector = rspirv_reflect::Reflection::new_from_spirv(shader).unwrap();
-        let push_constants = match reflector.get_push_constant_range().unwrap() {
-            Some(p) => p,
-            None => PushConstantInfo { offset: 0, size: 0 },
-        };
-        let compute_group_sizes = reflector.get_compute_group_size().unwrap();
-
-        let text = reflector.disassemble();
-
-        let re = Regex::new(
-            r"buffer [^\s\\]*_block|(([ui]*image3D|[ui]*image2D|[ui]*image1D) [a-z_A-Z]*)",
-        )
-        .unwrap();
-        let bindings: Vec<String> = re
-            .find_iter(&text)
-            .map(|val| val.as_str().split(" ").collect::<Vec<&str>>()[1].to_string())
-            .collect::<Vec<String>>();
+            .map(|resource| {
+                match self
+                    .resources
+                    .get(resource)
+                    .unwrap_or_else(|| panic!("resource does not exist: {}", resource))
+                {
+                    GpuResource::Buffer(buffer) => TextureOrBuffer::Buffer(buffer, false),
+                    GpuResource::Texture(texture, format, dimension, _) => {
+                        TextureOrBuffer::Texture(
+                            texture,
+                            wgpu::StorageTextureAccess::ReadWrite,
+                            *format,
+                            *dimension,
+                        )
+                    }
+                    GpuResource::Pipeline(_) => panic!(
+                        "{} is a pipeline and can not be used as a resource",
+                        resource
+                    ),
+                }
+            })
+            .collect::<Vec<TextureOrBuffer>>();
+        let push_constant_range = shader.push_constant_info.offset
+            ..shader.push_constant_info.offset + shader.push_constant_info.size;
 
         self.resources.insert(
             shader_name.to_string(),
             GpuResource::Pipeline(ComputePipeline::new(
                 self,
                 shader_name,
-                inline_spirv_runtime::runtime_compile(
-                    &std::fs::read_to_string(shader_file.clone()).unwrap(),
-                    Some(&shader_file),
-                    &cfg,
-                )
-                .map_err(|e| println!("{}", e))
-                .unwrap_or_else(|_| panic!("could not compile shader: {}", shader_name))
-                .as_slice(),
-                bindings
-                    .iter()
-                    .map(|resource| {
-                        match self
-                            .resources
-                            .get(resource)
-                            .unwrap_or_else(|| panic!("resource does not exist: {}", resource))
-                        {
-                            GpuResource::Buffer(buffer) => TextureOrBuffer::Buffer(buffer, false),
-                            GpuResource::Texture(texture, format, dimension, _) => {
-                                TextureOrBuffer::Texture(
-                                    texture,
-                                    wgpu::StorageTextureAccess::ReadWrite,
-                                    *format,
-                                    *dimension,
-                                )
-                            }
-                            GpuResource::Pipeline(_) => panic!(
-                                "{} is a pipeline and can not be used as a resource",
-                                resource
-                            ),
-                        }
-                    })
-                    .collect::<Vec<TextureOrBuffer>>()
-                    .as_slice(),
-                match execution_mode {
-                    Execution::PerPixel1D => (
-                        (self.size.width * self.size.height + compute_group_sizes.0 - 1)
-                            / compute_group_sizes.0,
-                        1u32,
-                        1u32,
-                    ),
-                    Execution::PerPixel2D => (
-                        (self.size.width + compute_group_sizes.0 - 1) / compute_group_sizes.0,
-                        (self.size.height + compute_group_sizes.1 - 1) / compute_group_sizes.1,
-                        1,
-                    ),
-                    Execution::N3D(n) => (
-                        (n + compute_group_sizes.0 - 1) / compute_group_sizes.0,
-                        (n + compute_group_sizes.1 - 1) / compute_group_sizes.1,
-                        (n + compute_group_sizes.2 - 1) / compute_group_sizes.2,
-                    ),
-                    Execution::N1D(n) => (
-                        (n + compute_group_sizes.0 - 1) / compute_group_sizes.0,
-                        1,
-                        1,
-                    ),
-                },
-                Some(push_constants.offset..push_constants.offset + push_constants.size), //TODO make this dynamic
+                shader.shader.as_slice(),
+                bindings.as_slice(),
+                execution_mode,
+                Some(push_constant_range),
             )),
         );
     }
+
     pub fn buffer<Type>(&mut self, buffer_name: &str, number_of_elements: u32) {
         if self.resources.contains_key(buffer_name) {
             if cfg!(debug_assertions) {

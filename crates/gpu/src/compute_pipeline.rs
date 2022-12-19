@@ -8,6 +8,7 @@ pub struct ComputePipeline {
     pub work_group_dims: (u32, u32, u32),
 }
 
+#[derive(Debug)]
 pub enum TextureOrBuffer<'a> {
     Texture(
         &'a wgpu::TextureView,

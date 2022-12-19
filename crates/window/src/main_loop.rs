@@ -1,5 +1,7 @@
+use std::error::Error;
 use std::time::Instant;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::error::OsError;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
@@ -22,7 +24,11 @@ pub trait Game {
     fn on_resize(&mut self, new_size: (u32, u32));
 }
 
-pub fn main_loop_run<T>(window_width: u32, window_height: u32, ticks_per_s: f32)
+pub fn main_loop_run<T>(
+    window_width: u32,
+    window_height: u32,
+    ticks_per_s: f32,
+) -> Result<(), OsError>
 where
     T: 'static + Game,
 {
@@ -30,8 +36,7 @@ where
     let window_builder = WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(window_width, window_height))
         .with_resizable(false);
-    //.with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
-    let window = window_builder.build(&event_loop).unwrap();
+    let window = window_builder.build(&event_loop)?;
     let mut game = T::on_init(&window);
     let mut window_input = Input::new();
     let mut on_tick_timer = Instant::now();

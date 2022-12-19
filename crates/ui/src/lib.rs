@@ -225,56 +225,59 @@ impl MainGui {
         }
     }
     pub fn metric(&mut self, graph_name: &str, size: usize, val: f32) {
-        if !self.performance_metric.contains_key(graph_name) {
-            self.performance_metric
-                .insert(graph_name.to_string(), MetricData::new(size));
-        }
+        match self.performance_metric.get_mut(graph_name) {
+            None => {
+                self.performance_metric
+                    .insert(graph_name.to_string(), MetricData::new(size));
+            }
+            Some(metric_data) => {
+                if metric_data.handled_indices == 0 {
+                    metric_data.rolling_average = val;
+                } else {
+                    metric_data.rolling_average = (1f32 / metric_data.values.len() as f32) * val
+                        + (1f32 - 1f32 / metric_data.values.len() as f32)
+                            * metric_data.rolling_average;
+                }
 
-        let metric_data = self.performance_metric.get_mut(graph_name).unwrap();
-        if metric_data.handled_indices == 0 {
-            metric_data.rolling_average = val;
-        } else {
-            metric_data.rolling_average = (1f32 / metric_data.values.len() as f32) * val
-                + (1f32 - 1f32 / metric_data.values.len() as f32) * metric_data.rolling_average;
-        }
+                // set min/max indices on new val
+                if val <= metric_data.values[metric_data.min_index] {
+                    metric_data.min_index = metric_data.current_index;
+                }
+                if val >= metric_data.values[metric_data.max_index] {
+                    metric_data.max_index = metric_data.current_index;
+                }
+                // set val
+                metric_data.values[metric_data.current_index] = val;
+                //update min/max index when overwriting
+                if metric_data.min_index == metric_data.current_index {
+                    let mut min_i = 0;
+                    for i in 0..metric_data.handled_indices as usize {
+                        if metric_data.values[i] < metric_data.values[min_i] {
+                            min_i = i;
+                        }
+                    }
+                    metric_data.min_index = min_i;
+                }
+                if metric_data.max_index == metric_data.current_index {
+                    let mut max_i = 0;
+                    for i in 0..metric_data.handled_indices as usize {
+                        if metric_data.values[i] > metric_data.values[max_i] {
+                            max_i = i;
+                        }
+                    }
+                    metric_data.max_index = max_i;
+                }
 
-        // set min/max indices on new val
-        if val <= metric_data.values[metric_data.min_index] {
-            metric_data.min_index = metric_data.current_index;
-        }
-        if val >= metric_data.values[metric_data.max_index] {
-            metric_data.max_index = metric_data.current_index;
-        }
-        // set val
-        metric_data.values[metric_data.current_index] = val;
-        //update min/max index when overwriting
-        if metric_data.min_index == metric_data.current_index {
-            let mut min_i = 0;
-            for i in 0..metric_data.handled_indices as usize {
-                if metric_data.values[i] < metric_data.values[min_i] {
-                    min_i = i;
+                metric_data.current_index += 1;
+                metric_data.handled_indices = max(
+                    metric_data.handled_indices,
+                    metric_data.current_index as i32,
+                );
+                // make sure to wrap around when needed
+                if metric_data.current_index == metric_data.values.len() as usize {
+                    metric_data.current_index = 0;
                 }
             }
-            metric_data.min_index = min_i;
-        }
-        if metric_data.max_index == metric_data.current_index {
-            let mut max_i = 0;
-            for i in 0..metric_data.handled_indices as usize {
-                if metric_data.values[i] > metric_data.values[max_i] {
-                    max_i = i;
-                }
-            }
-            metric_data.max_index = max_i;
-        }
-
-        metric_data.current_index += 1;
-        metric_data.handled_indices = max(
-            metric_data.handled_indices,
-            metric_data.current_index as i32,
-        );
-        // make sure to wrap around when needed
-        if metric_data.current_index == metric_data.values.len() as usize {
-            metric_data.current_index = 0;
-        }
+        };
     }
 }

@@ -68,11 +68,10 @@ impl Input {
         }
     }
     pub fn update_keyboard_input(&mut self, input: &KeyboardInput, control_flow: &mut ControlFlow) {
-        if input.state == ElementState::Pressed && input.virtual_keycode.is_some() {
-            self.keyboard_state.pressed(input.virtual_keycode.unwrap());
-        }
-        if input.state == ElementState::Released && input.virtual_keycode.is_some() {
-            self.keyboard_state.released(input.virtual_keycode.unwrap());
+        match (input.state, input.virtual_keycode) {
+            (ElementState::Pressed, Some(val)) => self.keyboard_state.pressed(val),
+            (ElementState::Released, Some(val)) => self.keyboard_state.released(val),
+            (_, _) => (),
         }
 
         if let KeyboardInput {
@@ -99,6 +98,8 @@ impl Input {
         self.mouse_state.mouse_delta
     }
     pub fn any_change(&self) -> bool {
-        self.keyboard_state.any_down() || self.mouse_state.mouse_delta[0] != 0.0 || self.mouse_state.mouse_delta[1] != 0.0
+        self.keyboard_state.any_down()
+            || self.mouse_state.mouse_delta[0] != 0.0
+            || self.mouse_state.mouse_delta[1] != 0.0
     }
 }
