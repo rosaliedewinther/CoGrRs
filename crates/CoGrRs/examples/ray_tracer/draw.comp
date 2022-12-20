@@ -1,0 +1,17 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+
+layout(rgba8, binding=0) uniform image2D to_draw_texture;
+layout(r32f, binding=1) uniform image2D depth_buffer;
+
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+void main() {
+    uvec3 global_invocation_id = gl_GlobalInvocationID;
+    uint x = global_invocation_id.x;
+    uint y = global_invocation_id.y;
+    ivec2 pos = ivec2(x,y);
+
+    imageStore(to_draw_texture, pos, imageLoad(depth_buffer, pos) / 10.0);
+}
+
