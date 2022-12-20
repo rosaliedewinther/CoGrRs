@@ -1,5 +1,4 @@
 use bytemuck::{Pod, Zeroable};
-use gpu::wgpu::TextureFormat::Rgba8Unorm;
 use gpu::Context;
 use gpu::Execution::PerPixel2D;
 use ui::MainGui;
@@ -29,7 +28,7 @@ impl Game for HelloSine {
             "crates/CoGrRs/examples/hello_sine/",
         );
 
-        gpu_context.texture("to_draw_texture", (1280, 720, 1), Rgba8Unorm);
+        gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
         gpu_context.pipeline("sine", [], PerPixel2D);
 
         let ui = MainGui::new(&gpu_context, window);

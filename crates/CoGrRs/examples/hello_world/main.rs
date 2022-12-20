@@ -1,4 +1,3 @@
-use gpu::wgpu::TextureFormat::Rgba8Unorm;
 use gpu::Context;
 use ui::MainGui;
 use window::{
@@ -16,7 +15,7 @@ impl Game for HelloWorld {
     fn on_init(window: &Window) -> Self {
         let mut gpu_context = Context::new(window, "to_draw_texture", "");
 
-        gpu_context.texture("to_draw_texture", (1280, 720, 1), Rgba8Unorm);
+        gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
 
         let ui = MainGui::new(&gpu_context, window);
 

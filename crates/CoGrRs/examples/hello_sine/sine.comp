@@ -19,7 +19,7 @@ void main() {
     float val = sin(float(x*5)/1280 + gpu_data.time)/2+0.5; // calulate sin value at certain x
     bool color = val * 720 < y + 1 && val * 720 > y - 1; // the pixel has to be colored if it is at most 1 pixel away from the sin value
     
-    imageStore(to_draw_texture, pos, vec4(color));
+    imageStore(to_draw_texture, pos, vec4(color, 0, 0, 1));
     return;
 }
 

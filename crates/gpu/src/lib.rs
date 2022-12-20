@@ -11,6 +11,8 @@ use crate::compute_pipeline::ComputePipeline;
 use std::{cmp::max, collections::HashMap, num::NonZeroU32};
 
 use bytemuck::{Pod, Zeroable};
+use wgpu::TextureFormat::Rgba8Unorm;
+use wgpu::TextureFormat::Bgra8Unorm;
 
 use log::{debug, info};
 
@@ -91,9 +93,20 @@ impl Context {
             None, // Trace path
         ))
         .expect("can't create device or command queue");
+        info!("supported swapchain surface formats: {:?}", surface.get_supported_formats(&adapter));
+
+        let surface_format = match surface.get_supported_formats(&adapter).contains(&Rgba8Unorm){
+            true => Rgba8Unorm,
+            false => match surface.get_supported_formats(&adapter).contains(&Bgra8Unorm){
+                true => Bgra8Unorm,
+                false => panic!("neither Rgba8Unorm nor Brga8Unorm is supported"),
+            }
+        };
+
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: surface_format,
             width: window.inner_size().width,
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::Immediate,
@@ -127,7 +140,7 @@ impl Context {
         );
 
         let mut texture_view_config = wgpu::TextureViewDescriptor::default();
-        texture_view_config.format = Some(wgpu::TextureFormat::Rgba8Unorm);
+        texture_view_config.format = Some(self.config.format);
 
         self.surface_texture_view = Some(
             self.surface_texture
@@ -141,6 +154,7 @@ impl Context {
             self.to_screen_pipeline = Some(ToScreenPipeline::new(
                 &self.device,
                 &self.get_raw_texture(&self.to_screen_texture_name),
+                self.config.format
             ));
         }
         self.device

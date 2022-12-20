@@ -9,12 +9,12 @@ pub struct ToScreenPipeline {
 }
 
 impl ToScreenPipeline {
-    pub fn new(device: &wgpu::Device, screen_texture: &wgpu::TextureView) -> Self {
+    pub fn new(device: &wgpu::Device, screen_texture: &wgpu::TextureView, texture_format: wgpu::TextureFormat) -> Self {
         let (index_buffer, num_indices) = ToScreenPipeline::init_primitives(device);
 
         let (bindgroup, bindgroup_layout) =
-            ToScreenPipeline::init_bindgroup(device, screen_texture);
-        let pipeline = ToScreenPipeline::init_pipeline(device, &bindgroup_layout);
+            ToScreenPipeline::init_bindgroup(device, screen_texture, texture_format);
+        let pipeline = ToScreenPipeline::init_pipeline(device, &bindgroup_layout, texture_format);
 
         ToScreenPipeline {
             pipeline,
@@ -27,6 +27,7 @@ impl ToScreenPipeline {
     fn init_pipeline(
         device: &wgpu::Device,
         bindgroup_layout: &wgpu::BindGroupLayout,
+        texture_format: wgpu::TextureFormat
     ) -> wgpu::RenderPipeline {
         let f_shader = unsafe {
             device.create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
@@ -69,7 +70,7 @@ impl ToScreenPipeline {
                 entry_point: "main",
                 targets: &[Some(wgpu::ColorTargetState {
                     // 4.
-                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    format: texture_format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -100,6 +101,7 @@ impl ToScreenPipeline {
     fn init_bindgroup(
         device: &wgpu::Device,
         texture_view: &wgpu::TextureView,
+        texture_format: wgpu::TextureFormat
     ) -> (wgpu::BindGroup, wgpu::BindGroupLayout) {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("texture_bind_group_layout_to_screen"),
@@ -109,7 +111,7 @@ impl ToScreenPipeline {
                 ty: wgpu::BindingType::StorageTexture {
                     access: wgpu::StorageTextureAccess::ReadOnly,
                     view_dimension: wgpu::TextureViewDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    format: texture_format,
                 },
                 count: None,
             }],
