@@ -14,7 +14,7 @@ use bytemuck::{Pod, Zeroable};
 use wgpu::TextureFormat::Rgba8Unorm;
 use wgpu::TextureFormat::Bgra8Unorm;
 
-use log::{debug, info};
+use log::{info};
 
 
 use wgpu::{
@@ -449,6 +449,7 @@ impl Context {
         data_size: usize,
         location: usize,
     ) {
+        info!("writing buffer data to {}, from buffer with {} elements, writing {} bytes starting at {}", buffer_name, data.len(), data_size, location);
         let buffer = self
             .resources
             .get(buffer_name)
@@ -488,6 +489,7 @@ impl Context {
         buffer_name: &str,
         count: u32,
     ) -> Vec<T> {
+        info!("reading buffer data from {}, with {} elements of size {}", buffer_name, count, std::mem::size_of::<T>());
         let buffer = self
             .resources
             .get(buffer_name)
@@ -547,6 +549,7 @@ impl Context {
         data: &[T],
         image_size: (u32, u32, u32),
     ) {
+        info!("writing texture data to {}, with size {:?}, the data source has size {}", texture_name, image_size, data.len() * std::mem::size_of::<T>());
         let uploading_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -568,8 +571,6 @@ impl Context {
 
         let bytes_per_row = max(1, (image_size.0 * std::mem::size_of::<T>() as u32) / 256) * 256;
         let rows_per_image = image_size.1;
-        debug!("bytes per row: {}", bytes_per_row);
-        debug!("rows per image: {}", rows_per_image);
         encoder.copy_buffer_to_texture(
             ImageCopyBuffer {
                 buffer: &uploading_buffer,
