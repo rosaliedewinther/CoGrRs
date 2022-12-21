@@ -12,6 +12,6 @@ void main() {
     uint y = global_invocation_id.y;
     ivec2 pos = ivec2(x,y);
 
-    imageStore(to_draw_texture, pos, imageLoad(depth_buffer, pos) / 10.0);
+    imageStore(to_draw_texture, pos, imageLoad(depth_buffer, pos) / 50.0);
 }
 

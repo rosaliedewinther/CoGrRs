@@ -12,6 +12,8 @@ use window::{
     winit::window::Window,
 };
 
+use crate::bvh::Ray;
+
 mod bvh;
 
 pub struct HelloWorld {
@@ -35,7 +37,8 @@ impl Game for HelloWorld {
 
         let screen_buffer = vec![0f32; 1280 * 720];
 
-        let bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/cube.obj");
+        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/teapot.obj");
+        bvh.build_bvh();
 
         let ui = MainGui::new(&gpu_context, window);
 
@@ -53,15 +56,30 @@ impl Game for HelloWorld {
             .map(|index| {
                 let x = index % 1280;
                 let y = index / 1280;
-                let screen_plane_y = (y as f32 - (720f32 / 2f32)) / (720f32 / 2f32);
+                let screen_plane_y = ((y * -1 + 720) as f32 - (720f32 / 2f32)) / (720f32 / 2f32);
                 let screen_plane_x = (x as f32 - (1280f32 / 2f32)) / (1280f32 / 2f32) * 1.7777777;
+
                 let ray_origin = Point::new(0f32, 0f32, -10f32);
                 let ray_direction =
                     normalize(&(Point::new(screen_plane_x, screen_plane_y, 0f32) - ray_origin));
-                match self.bvh.intersect(&ray_origin, &ray_direction) {
-                    Some((_, t)) => t,
-                    None => 10f32,
-                }
+                let ray_r_direction = Point::new(
+                    1f32 / ray_direction.pos[0],
+                    1f32 / ray_direction.pos[1],
+                    1f32 / ray_direction.pos[2],
+                );
+                let mut ray = Ray {
+                    o: ray_origin,
+                    d: ray_direction,
+                    d_r: ray_r_direction,
+                    t: f32::MAX,
+                    prim: u32::MAX,
+                    _padding1: 0,
+                    _padding2: 0,
+                };
+
+                self.bvh.fast_intersect(&mut ray);
+
+                ray.t
             })
             .collect();
 
