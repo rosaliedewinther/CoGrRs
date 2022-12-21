@@ -148,8 +148,8 @@ impl Point {
         Point {
             pos: [
                 f32::min(self.pos[0], rhs.pos[0]),
-                f32::min(self.pos[0], rhs.pos[0]),
-                f32::min(self.pos[0], rhs.pos[0]),
+                f32::min(self.pos[1], rhs.pos[1]),
+                f32::min(self.pos[2], rhs.pos[2]),
                 0f32,
             ],
         }
@@ -158,8 +158,8 @@ impl Point {
         Point {
             pos: [
                 f32::max(self.pos[0], rhs.pos[0]),
-                f32::max(self.pos[0], rhs.pos[0]),
-                f32::max(self.pos[0], rhs.pos[0]),
+                f32::max(self.pos[1], rhs.pos[1]),
+                f32::max(self.pos[2], rhs.pos[2]),
                 0f32,
             ],
         }
@@ -267,9 +267,9 @@ impl BVH {
                 0f32,
             ],
         };
-        self.vertices
-            .iter_mut()
-            .for_each(|vertex| *vertex = (*vertex) * scale_factor + offset);
+        //self.vertices
+        //    .iter_mut()
+        //    .for_each(|vertex| *vertex = (*vertex) * scale_factor + offset);
 
         self.centroids = self
             .triangles
@@ -318,6 +318,7 @@ impl BVH {
         let index = *pool_index;
         *pool_index += 2;
         self.bvh_nodes[current_bvh_index].left_first = index as i32;
+
         let pivot = self.partition(
             current_bvh_index,
             start,
@@ -349,7 +350,7 @@ impl BVH {
     }
 
     fn partition(&mut self, current_bvh_index: usize, start: u32, count: u32) -> u32 {
-        let bins = 8;
+        let bins = 4;
         let mut optimal_axis = 0;
         let mut optimal_pos = 0f32;
         let mut optimal_cost = f32::MAX;
@@ -523,34 +524,20 @@ impl BVH {
         }
     }
 
-    /*pub fn intersect(&self, origin: &Point, direction: &Point) -> Option<([u32; 4], f32)> {
-        let mut closest_hit_triangle = None;
-        let mut t = f32::MAX;
-        for triangle in &self.triangles {
-            match self.intersects_triangle(origin, direction, triangle) {
-                None => (),
-                Some(new_t) => {
-                    if new_t < t {
-                        closest_hit_triangle = Some(triangle);
-                        t = new_t;
-                    }
-                }
-            }
+    pub fn intersect(&self, ray: &mut Ray) {
+        for triangle_id in 0..self.triangles.len() {
+            self.intersects_triangle(ray, triangle_id as u32);
         }
-        match closest_hit_triangle {
-            None => None,
-            Some(triangle) => Some((*triangle, t)),
-        }
-    }*/
+    }
 
     pub fn triangle_normal(&self, triangle_index: u32) -> Point {
         let triangle = self.triangles[triangle_index as usize];
         let p1 = self.vertices[triangle[1] as usize] - self.vertices[triangle[0] as usize];
         let p2 = self.vertices[triangle[1] as usize] - self.vertices[triangle[2] as usize];
-        normalize(&cross(&p1, &p2))
+        normalize(&cross(&normalize(&p1), &normalize(&p2)))
     }
     pub fn fast_intersect(&self, ray: &mut Ray) {
-        let mut stack = [0; 32];
+        let mut stack = [0; 128];
         let mut node_index = 0;
         let mut stack_ptr = 0;
 
