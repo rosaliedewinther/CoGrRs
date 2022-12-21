@@ -290,7 +290,7 @@ impl BVH {
 
         self.subdivide(0, 0, &mut 2);
 
-        self.print_tree(0, 0);
+        //self.print_tree(0, 0);
     }
 
     fn print_tree(&self, index: u32, depth: u32) {
@@ -542,6 +542,13 @@ impl BVH {
             Some(triangle) => Some((*triangle, t)),
         }
     }*/
+
+    pub fn triangle_normal(&self, triangle_index: u32) -> Point {
+        let triangle = self.triangles[triangle_index as usize];
+        let p1 = self.vertices[triangle[1] as usize] - self.vertices[triangle[0] as usize];
+        let p2 = self.vertices[triangle[1] as usize] - self.vertices[triangle[2] as usize];
+        normalize(&cross(&p1, &p2))
+    }
     pub fn fast_intersect(&self, ray: &mut Ray) {
         let mut stack = [0; 32];
         let mut node_index = 0;

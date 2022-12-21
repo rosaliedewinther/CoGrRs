@@ -1,7 +1,7 @@
 use std::cell::UnsafeCell;
 
 use bvh::{normalize, Point, BVH};
-use gpu::wgpu::TextureFormat::R32Float;
+use gpu::wgpu::TextureFormat::Rgba8Uint;
 use gpu::Context;
 use gpu::Execution::PerPixel2D;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
@@ -12,7 +12,7 @@ use window::{
     winit::window::Window,
 };
 
-use crate::bvh::Ray;
+use crate::bvh::{cross, dot, Ray};
 
 mod bvh;
 
@@ -20,7 +20,8 @@ pub struct HelloWorld {
     pub gpu_context: Context,
     pub ui: MainGui,
     pub bvh: BVH,
-    pub screen_buffer: Vec<f32>,
+    pub time: f32,
+    pub screen_buffer: Vec<[u8; 4]>,
 }
 
 impl Game for HelloWorld {
@@ -32,12 +33,12 @@ impl Game for HelloWorld {
         );
 
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
-        gpu_context.texture("depth_buffer", (1280, 720, 1), R32Float);
+        gpu_context.texture("depth_buffer", (1280, 720, 1), Rgba8Uint);
         gpu_context.pipeline("draw", [], PerPixel2D);
 
-        let screen_buffer = vec![0f32; 1280 * 720];
+        let screen_buffer = vec![[0; 4]; 1280 * 720];
 
-        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/teapot.obj");
+        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/cube.obj");
         bvh.build_bvh();
 
         let ui = MainGui::new(&gpu_context, window);
@@ -46,22 +47,29 @@ impl Game for HelloWorld {
             gpu_context,
             ui,
             bvh,
+            time: 0f32,
             screen_buffer,
         }
     }
 
     fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult {
+        self.time += dt / 5f32;
+        let ray_origin = Point::new(self.time.sin() * 5f32, 0f32, self.time.cos() * 5f32);
+        let ray_direction = normalize(&Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
+        let ray_side = cross(&ray_direction, &normalize(&Point::new(0f32, 1f32, 0f32)));
+        let ray_up = cross(&ray_direction, &ray_side);
         self.screen_buffer = (0..720 * 1280)
-            .into_par_iter()
+            .into_iter()
             .map(|index| {
                 let x = index % 1280;
                 let y = index / 1280;
-                let screen_plane_y = ((y * -1 + 720) as f32 - (720f32 / 2f32)) / (720f32 / 2f32);
-                let screen_plane_x = (x as f32 - (1280f32 / 2f32)) / (1280f32 / 2f32) * 1.7777777;
 
-                let ray_origin = Point::new(0f32, 0f32, -10f32);
-                let ray_direction =
-                    normalize(&(Point::new(screen_plane_x, screen_plane_y, 0f32) - ray_origin));
+                let screen_point = ray_origin
+                    + ray_direction
+                    + ray_side * (x as f32 - 640f32) * 1.7777 / 1280f32
+                    + ray_up * (y as f32 - 360f32) / 720f32;
+
+                let ray_direction = normalize(&(screen_point - ray_origin));
                 let ray_r_direction = Point::new(
                     1f32 / ray_direction.pos[0],
                     1f32 / ray_direction.pos[1],
@@ -78,8 +86,22 @@ impl Game for HelloWorld {
                 };
 
                 self.bvh.fast_intersect(&mut ray);
-
-                ray.t
+                if ray.t < 10000000f32 {
+                    let normal = self.bvh.triangle_normal(ray.prim);
+                    let normal = if dot(&normal, &ray_direction) < 0f32 {
+                        normal
+                    } else {
+                        Point::new(-normal.pos[0], -normal.pos[1], -normal.pos[2])
+                    };
+                    [
+                        (normal.pos[0] * 255f32) as u8,
+                        (normal.pos[1] * 255f32) as u8,
+                        (normal.pos[2] * 255f32) as u8,
+                        255,
+                    ]
+                } else {
+                    [0, 0, 0, 255]
+                }
             })
             .collect();
 
