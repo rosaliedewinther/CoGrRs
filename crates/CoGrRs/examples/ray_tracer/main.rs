@@ -48,7 +48,7 @@ impl Game for HelloWorld {
 
         let screen_buffer = vec![[0; 4]; (SCREEN_WIDTH * SCREEN_HEIGHT) as usize];
 
-        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/teapot.obj");
+        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
 
         let ui = MainGui::new(&gpu_context, window);
@@ -58,18 +58,18 @@ impl Game for HelloWorld {
             ui,
             bvh,
             time: 0f32,
-            distance: 5f32,
+            distance: 1f32,
             screen_buffer,
         }
     }
 
     fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult {
-        self.time += 0.1;
+        //self.time += 0.1;
         self.distance += input.mouse_state.scroll_delta;
         let ray_origin = Point::new(
-            self.time.sin() * self.distance,
+            self.distance, //self.time.sin() * self.distance,
             0f32,
-            self.time.cos() * self.distance,
+            0f32, // self.time.cos() * self.distance,
         );
         let ray_direction = normalize(&Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
         let ray_side = cross(&ray_direction, &normalize(&Point::new(0f32, 1f32, 0f32)));
@@ -104,12 +104,12 @@ impl Game for HelloWorld {
 
                 self.bvh.fast_intersect(&mut ray);
 
-                //return [
-                //    (ray.t / 10f32) as u8, //(intensity * 255f32) as u8,
-                //    (ray.t / 10f32) as u8, //(intensity * 255f32) as u8,
-                //    (ray.t / 10f32) as u8, //(intensity * 255f32) as u8,
-                //    255,
-                //];
+                /*return [
+                    (ray.t) as u8, //(intensity * 255f32) as u8,
+                    (ray.t) as u8, //(intensity * 255f32) as u8,
+                    (ray.t) as u8, //(intensity * 255f32) as u8,
+                    255,
+                ];*/
 
                 if ray.t < 10000000f32 {
                     let normal = self.bvh.triangle_normal(ray.prim);

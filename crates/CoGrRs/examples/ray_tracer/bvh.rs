@@ -1,5 +1,8 @@
+use core::panic;
+use std::fmt::Debug;
 use std::{
     cmp::{max, min},
+    fmt::format,
     fs::File,
     io::{BufRead, BufReader},
     ops::{Add, Div, Mul, Sub},
@@ -18,7 +21,7 @@ pub struct Triangle {
     points: [Point; 4],
 }
 #[repr(C, align(32))]
-#[derive(Pod, Zeroable, Copy, Clone, Debug)]
+#[derive(Pod, Zeroable, Copy, Clone)]
 pub struct BVHNode {
     pub minx: f32,
     pub miny: f32,
@@ -84,6 +87,21 @@ impl Add for Point {
     }
 }
 
+impl Add<f32> for Point {
+    type Output = Point;
+
+    fn add(self, other: f32) -> Point {
+        Point {
+            pos: [
+                self.pos[0] + other,
+                self.pos[1] + other,
+                self.pos[2] + other,
+                0f32,
+            ],
+        }
+    }
+}
+
 impl Sub for Point {
     type Output = Point;
 
@@ -93,6 +111,21 @@ impl Sub for Point {
                 self.pos[0] - other.pos[0],
                 self.pos[1] - other.pos[1],
                 self.pos[2] - other.pos[2],
+                0f32,
+            ],
+        }
+    }
+}
+
+impl Sub<f32> for Point {
+    type Output = Point;
+
+    fn sub(self, other: f32) -> Point {
+        Point {
+            pos: [
+                self.pos[0] - other,
+                self.pos[1] - other,
+                self.pos[2] - other,
                 0f32,
             ],
         }
@@ -191,6 +224,22 @@ pub fn normalize(point: &Point) -> Point {
 
 pub fn distance(a: &Point, b: &Point) -> f32 {
     length(&(*a - *b))
+}
+
+impl Debug for BVHNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!(
+            "{} {} {} {} {} {} {} {}",
+            self.count,
+            self.left_first,
+            self.maxx,
+            self.maxy,
+            self.maxz,
+            self.minx,
+            self.miny,
+            self.minz
+        ))
+    }
 }
 
 impl BVH {
@@ -306,14 +355,35 @@ impl BVH {
         self.subdivide(0, 0, &mut 2);
 
         //self.print_tree(0, 0);
+        /*for (i, node) in self.bvh_nodes.iter().enumerate() {
+            println!(
+                "{}: {} {} {} {} {} {} {} {}",
+                i,
+                node.count,
+                node.left_first,
+                node.maxx,
+                node.maxy,
+                node.maxz,
+                node.minx,
+                node.miny,
+                node.minz,
+            );
+        }*/
     }
 
     fn print_tree(&self, index: u32, depth: u32) {
         println!(
-            "{}{}: {:?}",
+            "{}{}: {} {} {} {} {} {} {} {}",
             "\t".repeat(depth as usize),
             index,
-            self.bvh_nodes[index as usize]
+            self.bvh_nodes[index as usize].maxx,
+            self.bvh_nodes[index as usize].maxy,
+            self.bvh_nodes[index as usize].maxz,
+            self.bvh_nodes[index as usize].minx,
+            self.bvh_nodes[index as usize].miny,
+            self.bvh_nodes[index as usize].minz,
+            self.bvh_nodes[index as usize].count,
+            self.bvh_nodes[index as usize].left_first,
         );
         if self.bvh_nodes[index as usize].count > 0 {
             return;
@@ -332,7 +402,7 @@ impl BVH {
     // start = start in indices buffer
     // pool_index = first free spot in bvh_nodes
     fn subdivide(&mut self, current_bvh_index: usize, start: u32, pool_index: &mut u32) {
-        if self.bvh_nodes[current_bvh_index].count <= 3 {
+        if self.bvh_nodes[current_bvh_index].count <= 200 {
             self.bvh_nodes[current_bvh_index].left_first = start as i32;
             return;
         }
@@ -354,6 +424,12 @@ impl BVH {
         self.bvh_nodes[index as usize + 1].count = right_count;
         let bounds = self.calculate_bounds(pivot, right_count as u32);
         self.set_bound(index as usize + 1, &bounds);
+
+        //println!("parent: {:?}", self.bvh_nodes[current_bvh_index]);
+        //println!("left: {:?}", self.bvh_nodes[index as usize]);
+        //println!("right: {:?}", self.bvh_nodes[index as usize + 1]);
+        //
+        //panic!("");
 
         self.subdivide(index as usize, start, pool_index);
         self.subdivide(index as usize + 1, pivot, pool_index);
@@ -425,7 +501,7 @@ impl BVH {
         let mut end = (start + count - 1) as i32;
         let mut i = start as i32;
 
-        while i <= end {
+        while i < end {
             //println!("{} {}", i, end);
             if self.centroids[self.indices[i as usize] as usize].pos[axis] < pos {
                 i += 1;
@@ -441,26 +517,26 @@ impl BVH {
     // return min and max point
     fn calculate_bounds(&self, first: u32, amount: u32) -> AABB {
         let mut max_point = Point {
-            pos: [f32::MIN, f32::MIN, f32::MIN, 0f32],
+            pos: [-100000000f32, -100000000f32, -100000000f32, 0f32],
         };
         let mut min_point = Point {
-            pos: [f32::MAX, f32::MAX, f32::MAX, 0f32],
+            pos: [100000000f32, 100000000f32, 100000000f32, 0f32],
         };
         for i in first..(first + amount) {
             let i = i as usize;
             for j in 0..3 as usize {
                 let vertex = &self.vertices[self.triangles[self.indices[i] as usize][j] as usize];
-                max_point = Point::max(&max_point, vertex);
-                min_point = Point::min(&min_point, vertex);
+                max_point = Point::max(&(max_point), vertex);
+                min_point = Point::min(&(min_point), vertex);
             }
         }
         AABB {
-            minx: min_point.pos[0],
-            miny: min_point.pos[1],
-            minz: min_point.pos[2],
             maxx: max_point.pos[0],
             maxy: max_point.pos[1],
             maxz: max_point.pos[2],
+            minx: min_point.pos[0],
+            miny: min_point.pos[1],
+            minz: min_point.pos[2],
             _padding1: 0f32,
             _padding2: 0f32,
         }
@@ -489,7 +565,7 @@ impl BVH {
         // Only testing positive bound, thus enabling backface culling
         // If backface culling is not desired write:
         // det < 0.0001 && det > -0.0001
-        if det < 0.0001 && det > -0.0001 {
+        if det < 0.000000001 && det > -0.000000001 {
             return;
         }
 
@@ -518,7 +594,7 @@ impl BVH {
 
         let dist = dot(&a_to_c, &v_vec) * inv_det;
 
-        if dist > 0.0001 && dist < ray.t {
+        if dist > 0.0000001 && dist < ray.t {
             ray.t = dist;
             ray.prim = triangle_index;
         }
@@ -562,10 +638,10 @@ impl BVH {
         let mut node_index = 0;
         let mut stack_ptr = 0;
 
-        //let mut loop_counter = 0;
+        let mut loop_counter = 0;
 
         loop {
-            //loop_counter += 1;
+            loop_counter += 1;
             //println!("{:?}", self.bvh_nodes[node_index]);
             //println!("{} {} {:?}", node_index, stack_ptr, stack);
             if self.bvh_nodes[node_index].count > 0 {
