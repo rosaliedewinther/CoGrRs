@@ -214,10 +214,25 @@ impl BVH {
                 });
             }
             if splits[0] == "f" {
-                let p1 = splits[1].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                let p2 = splits[2].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                let p3 = splits[3].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                triangles.push([p1, p2, p3, 0]);
+                match splits.len() {
+                    4 => {
+                        let p1 = splits[1].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p2 = splits[2].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p3 = splits[3].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        triangles.push([p1, p2, p3, 0]);
+                    }
+                    5 => {
+                        let p1 = splits[1].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p2 = splits[2].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p3 = splits[4].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        triangles.push([p1, p2, p3, 0]);
+                        let p1 = splits[2].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p2 = splits[3].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p3 = splits[4].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        triangles.push([p1, p2, p3, 0]);
+                    }
+                    _ => panic!("unknown model format"),
+                }
             }
         }
 
@@ -249,24 +264,24 @@ impl BVH {
     }
 
     pub fn build_bvh(&mut self) {
-        let aabb = self.calculate_bounds(0, self.triangles.len() as u32);
+        //let aabb = self.calculate_bounds(0, self.triangles.len() as u32);
 
-        let scale_factor = Point {
-            pos: [
-                1f32 / (aabb.maxx - aabb.minx),
-                1f32 / (aabb.maxy - aabb.miny),
-                1f32 / (aabb.maxz - aabb.minz),
-                0f32,
-            ],
-        };
-        let offset = Point {
-            pos: [
-                0f32 - (aabb.maxx + aabb.minx) * scale_factor.pos[0] / 2f32,
-                0f32 - (aabb.maxy + aabb.miny) * scale_factor.pos[1] / 2f32,
-                0f32 - (aabb.maxz + aabb.minz) * scale_factor.pos[2] / 2f32,
-                0f32,
-            ],
-        };
+        //let scale_factor = Point {
+        //    pos: [
+        //        1f32 / (aabb.maxx - aabb.minx),
+        //        1f32 / (aabb.maxy - aabb.miny),
+        //        1f32 / (aabb.maxz - aabb.minz),
+        //        0f32,
+        //    ],
+        //};
+        //let offset = Point {
+        //    pos: [
+        //        0f32 - (aabb.maxx + aabb.minx) * scale_factor.pos[0] / 2f32,
+        //        0f32 - (aabb.maxy + aabb.miny) * scale_factor.pos[1] / 2f32,
+        //        0f32 - (aabb.maxz + aabb.minz) * scale_factor.pos[2] / 2f32,
+        //        0f32,
+        //    ],
+        //};
         //self.vertices
         //    .iter_mut()
         //    .for_each(|vertex| *vertex = (*vertex) * scale_factor + offset);
@@ -310,6 +325,12 @@ impl BVH {
         );
     }
 
+    //loop invariants:
+    // current_bvh_index.count = the number of primitives which still have to be divided
+    // current_bvh_index.aabb = correct
+    // current_bvh_index.left_first = ???
+    // start = start in indices buffer
+    // pool_index = first free spot in bvh_nodes
     fn subdivide(&mut self, current_bvh_index: usize, start: u32, pool_index: &mut u32) {
         if self.bvh_nodes[current_bvh_index].count <= 3 {
             self.bvh_nodes[current_bvh_index].left_first = start as i32;
@@ -329,8 +350,7 @@ impl BVH {
         let bounds = self.calculate_bounds(start, left_count);
         self.set_bound(index as usize, &bounds);
 
-        let right_count =
-            self.bvh_nodes[current_bvh_index].count - self.bvh_nodes[index as usize].count;
+        let right_count = self.bvh_nodes[current_bvh_index].count - left_count as i32;
         self.bvh_nodes[index as usize + 1].count = right_count;
         let bounds = self.calculate_bounds(pivot, right_count as u32);
         self.set_bound(index as usize + 1, &bounds);
@@ -350,7 +370,7 @@ impl BVH {
     }
 
     fn partition(&mut self, current_bvh_index: usize, start: u32, count: u32) -> u32 {
-        let bins = 4;
+        let bins = 8;
         let mut optimal_axis = 0;
         let mut optimal_pos = 0f32;
         let mut optimal_cost = f32::MAX;
@@ -402,16 +422,17 @@ impl BVH {
     }
 
     fn partition_shuffle(&mut self, axis: usize, pos: f32, start: u32, count: u32) -> u32 {
-        let mut end = (start + count - 1) as usize;
-        let mut i = start as usize;
+        let mut end = (start + count - 1) as i32;
+        let mut i = start as i32;
 
-        while i < end {
-            if self.centroids[self.indices[i] as usize].pos[axis] > pos {
-                //we have to swap
-                self.indices.swap(i, end);
+        while i <= end {
+            //println!("{} {}", i, end);
+            if self.centroids[self.indices[i as usize] as usize].pos[axis] < pos {
+                i += 1;
+            } else {
+                self.indices.swap(i as usize, end as usize);
                 end -= 1;
             }
-            i += 1;
         }
 
         i as u32
@@ -481,7 +502,7 @@ impl BVH {
         let u = dot(&a_to_origin, &u_vec) * inv_det;
 
         // Test bounds: u < 0 || u > 1 => outside of triangle
-        if !(0.0..=1.0).contains(&u) {
+        if u < 0f32 || u > 1f32 {
             return;
         }
 
@@ -541,7 +562,10 @@ impl BVH {
         let mut node_index = 0;
         let mut stack_ptr = 0;
 
+        //let mut loop_counter = 0;
+
         loop {
+            //loop_counter += 1;
             //println!("{:?}", self.bvh_nodes[node_index]);
             //println!("{} {} {:?}", node_index, stack_ptr, stack);
             if self.bvh_nodes[node_index].count > 0 {
@@ -586,5 +610,6 @@ impl BVH {
                 }
             }
         }
+        //ray.t = loop_counter as f32;
     }
 }

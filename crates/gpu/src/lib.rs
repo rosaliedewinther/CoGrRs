@@ -11,11 +11,10 @@ use crate::compute_pipeline::ComputePipeline;
 use std::{cmp::max, collections::HashMap, num::NonZeroU32};
 
 use bytemuck::{Pod, Zeroable};
-use wgpu::TextureFormat::Rgba8Unorm;
 use wgpu::TextureFormat::Bgra8Unorm;
+use wgpu::TextureFormat::Rgba8Unorm;
 
-use log::{info};
-
+use log::info;
 
 use wgpu::{
     util::DeviceExt, CommandEncoder, Extent3d, ImageCopyBuffer, ImageCopyTexture, ImageDataLayout,
@@ -93,16 +92,24 @@ impl Context {
             None, // Trace path
         ))
         .expect("can't create device or command queue");
-        info!("supported swapchain surface formats: {:?}", surface.get_supported_formats(&adapter));
+        info!(
+            "supported swapchain surface formats: {:?}",
+            surface.get_supported_formats(&adapter)
+        );
 
-        let surface_format = match surface.get_supported_formats(&adapter).contains(&Rgba8Unorm){
+        let surface_format = match surface
+            .get_supported_formats(&adapter)
+            .contains(&Rgba8Unorm)
+        {
             true => Rgba8Unorm,
-            false => match surface.get_supported_formats(&adapter).contains(&Bgra8Unorm){
+            false => match surface
+                .get_supported_formats(&adapter)
+                .contains(&Bgra8Unorm)
+            {
                 true => Bgra8Unorm,
                 false => panic!("neither Rgba8Unorm nor Brga8Unorm is supported"),
-            }
+            },
         };
-
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -154,7 +161,7 @@ impl Context {
             self.to_screen_pipeline = Some(ToScreenPipeline::new(
                 &self.device,
                 &self.get_raw_texture(&self.to_screen_texture_name),
-                self.config.format
+                self.config.format,
             ));
         }
         self.device
@@ -489,7 +496,12 @@ impl Context {
         buffer_name: &str,
         count: u32,
     ) -> Vec<T> {
-        info!("reading buffer data from {}, with {} elements of size {}", buffer_name, count, std::mem::size_of::<T>());
+        info!(
+            "reading buffer data from {}, with {} elements of size {}",
+            buffer_name,
+            count,
+            std::mem::size_of::<T>()
+        );
         let buffer = self
             .resources
             .get(buffer_name)
@@ -549,7 +561,16 @@ impl Context {
         data: &[T],
         image_size: (u32, u32, u32),
     ) {
-        info!("writing texture data to {}, with size {:?}, the data source has size {}", texture_name, image_size, data.len() * std::mem::size_of::<T>());
+        info!(
+            "writing texture data to {}, with size {:?}, the data source has size {}",
+            texture_name,
+            image_size,
+            data.len() * std::mem::size_of::<T>()
+        );
+        debug_assert!(
+            (image_size.0 * std::mem::size_of::<T>() as u32 % 256) == 0,
+            "bytes per row must be multiple of 256"
+        );
         let uploading_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -571,6 +592,7 @@ impl Context {
 
         let bytes_per_row = max(1, (image_size.0 * std::mem::size_of::<T>() as u32) / 256) * 256;
         let rows_per_image = image_size.1;
+
         encoder.copy_buffer_to_texture(
             ImageCopyBuffer {
                 buffer: &uploading_buffer,

@@ -11,3 +11,6 @@ ui = {path = "../ui"}
 window = {path = "../window"}
 bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
 rayon = {version="1.6"}
+
+[profile.release]
+debug = true
