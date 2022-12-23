@@ -11,7 +11,7 @@ use std::{
 use bytemuck::{Pod, Zeroable};
 
 #[repr(C, align(16))]
-#[derive(Pod, Zeroable, Copy, Clone)]
+#[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct Point {
     pub pos: [f32; 4],
 }
@@ -62,6 +62,15 @@ pub struct BVH {
     pub indices: Vec<u32>,
     pub bvh_nodes: Vec<BVHNode>,
     pub centroids: Vec<Point>,
+}
+
+impl Debug for AABB {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!(
+            "({} {} {} {} {} {})",
+            self.maxx, self.maxy, self.maxz, self.minx, self.miny, self.minz
+        ))
+    }
 }
 
 impl Point {
@@ -177,7 +186,7 @@ impl Div<f32> for Point {
     }
 }
 impl Point {
-    pub fn min(&self, rhs: &Point) -> Point {
+    pub fn min(self, rhs: Point) -> Point {
         Point {
             pos: [
                 f32::min(self.pos[0], rhs.pos[0]),
@@ -187,7 +196,7 @@ impl Point {
             ],
         }
     }
-    pub fn max(&self, rhs: &Point) -> Point {
+    pub fn max(self, rhs: Point) -> Point {
         Point {
             pos: [
                 f32::max(self.pos[0], rhs.pos[0]),
@@ -199,11 +208,11 @@ impl Point {
     }
 }
 
-pub fn dot(a: &Point, b: &Point) -> f32 {
+pub fn dot(a: Point, b: Point) -> f32 {
     a.pos[0] * b.pos[0] + a.pos[1] * b.pos[1] + a.pos[2] * b.pos[2]
 }
 
-pub fn cross(a: &Point, b: &Point) -> Point {
+pub fn cross(a: Point, b: Point) -> Point {
     Point {
         pos: [
             a.pos[1] * b.pos[2] - a.pos[2] * b.pos[1],
@@ -214,16 +223,16 @@ pub fn cross(a: &Point, b: &Point) -> Point {
     }
 }
 
-pub fn length(point: &Point) -> f32 {
+pub fn length(point: Point) -> f32 {
     (point.pos[0] * point.pos[0] + point.pos[1] * point.pos[1] + point.pos[2] * point.pos[2]).sqrt()
 }
 
-pub fn normalize(point: &Point) -> Point {
-    *point / length(point)
+pub fn normalize(point: Point) -> Point {
+    point / length(point)
 }
 
-pub fn distance(a: &Point, b: &Point) -> f32 {
-    length(&(*a - *b))
+pub fn distance(a: Point, b: Point) -> f32 {
+    length(a - b)
 }
 
 impl Debug for BVHNode {
@@ -349,10 +358,11 @@ impl BVH {
         self.bvh_nodes[0].left_first = 0;
         self.bvh_nodes[0].count = self.triangles.len() as i32;
 
-        let aabb = self.calculate_bounds(0, self.triangles.len() as u32);
+        let aabb = self.calculate_bounds(0, self.triangles.len() as u32, false);
         self.set_bound(0, &aabb);
 
-        self.subdivide(0, 0, &mut 2);
+        self.subdivide(0, 0, &mut 2, 0);
+        println!("done building bvh");
 
         //self.print_tree(0, 0);
         /*for (i, node) in self.bvh_nodes.iter().enumerate() {
@@ -401,8 +411,18 @@ impl BVH {
     // current_bvh_index.left_first = ???
     // start = start in indices buffer
     // pool_index = first free spot in bvh_nodes
-    fn subdivide(&mut self, current_bvh_index: usize, start: u32, pool_index: &mut u32) {
-        if self.bvh_nodes[current_bvh_index].count <= 200 {
+    fn subdivide(
+        &mut self,
+        current_bvh_index: usize,
+        start: u32,
+        pool_index: &mut u32,
+        depth: u32,
+    ) {
+        //println!(
+        //    "depth: {} start: {}, count: {}",
+        //    depth, start, self.bvh_nodes[current_bvh_index].count
+        //);
+        if self.bvh_nodes[current_bvh_index].count <= 3 {
             self.bvh_nodes[current_bvh_index].left_first = start as i32;
             return;
         }
@@ -415,14 +435,15 @@ impl BVH {
             start,
             self.bvh_nodes[current_bvh_index].count as u32,
         );
+        //println!("pivot {}", pivot);
         let left_count = pivot - start;
         self.bvh_nodes[index as usize].count = left_count as i32;
-        let bounds = self.calculate_bounds(start, left_count);
+        let bounds = self.calculate_bounds(start, left_count, false);
         self.set_bound(index as usize, &bounds);
 
         let right_count = self.bvh_nodes[current_bvh_index].count - left_count as i32;
         self.bvh_nodes[index as usize + 1].count = right_count;
-        let bounds = self.calculate_bounds(pivot, right_count as u32);
+        let bounds = self.calculate_bounds(pivot, right_count as u32, false);
         self.set_bound(index as usize + 1, &bounds);
 
         //println!("parent: {:?}", self.bvh_nodes[current_bvh_index]);
@@ -431,8 +452,8 @@ impl BVH {
         //
         //panic!("");
 
-        self.subdivide(index as usize, start, pool_index);
-        self.subdivide(index as usize + 1, pivot, pool_index);
+        self.subdivide(index as usize, start, pool_index, depth + 1);
+        self.subdivide(index as usize + 1, pivot, pool_index, depth + 1);
         self.bvh_nodes[current_bvh_index].count = 0;
     }
 
@@ -449,25 +470,23 @@ impl BVH {
         let bins = 8;
         let mut optimal_axis = 0;
         let mut optimal_pos = 0f32;
+        let mut optimal_pivot = 0;
         let mut optimal_cost = f32::MAX;
+
+        let aabb = self.calculate_bounds(start, count, true);
+
+        //if count <= 10 {
+        //    for i in start..(start + count) {
+        //        println!("{:?}", self.centroids[self.indices[i as usize] as usize]);
+        //    }
+        //}
+
         for axis in 0..3 {
             for b in 1..bins {
                 let pos = match axis {
-                    0 => Self::lerp(
-                        self.bvh_nodes[current_bvh_index].minx,
-                        self.bvh_nodes[current_bvh_index].maxx,
-                        (b as f32) / (bins as f32),
-                    ),
-                    1 => Self::lerp(
-                        self.bvh_nodes[current_bvh_index].miny,
-                        self.bvh_nodes[current_bvh_index].maxy,
-                        (b as f32) / (bins as f32),
-                    ),
-                    2 => Self::lerp(
-                        self.bvh_nodes[current_bvh_index].minz,
-                        self.bvh_nodes[current_bvh_index].maxz,
-                        (b as f32) / (bins as f32),
-                    ),
+                    0 => Self::lerp(aabb.minx, aabb.maxx, (b as f32) / (bins as f32)),
+                    1 => Self::lerp(aabb.miny, aabb.maxy, (b as f32) / (bins as f32)),
+                    2 => Self::lerp(aabb.minz, aabb.maxz, (b as f32) / (bins as f32)),
                     _ => panic!("error when partitioning"),
                 };
                 let pivot = self.partition_shuffle(axis, pos, start, count);
@@ -475,8 +494,8 @@ impl BVH {
                 let bb1_count = pivot - start;
                 let bb2_count = count - bb1_count;
 
-                let bb1 = self.calculate_bounds(start, bb1_count);
-                let bb2 = self.calculate_bounds(pivot, bb2_count);
+                let bb1 = self.calculate_bounds(start, bb1_count, false);
+                let bb2 = self.calculate_bounds(pivot, bb2_count, false);
 
                 let half_area1 = (bb1.maxx - bb1.minx) * (bb1.maxy - bb1.miny)
                     + (bb1.maxx - bb1.minx) * (bb1.maxz - bb1.minz)
@@ -486,15 +505,25 @@ impl BVH {
                     + (bb2.maxy - bb2.miny) * (bb2.maxz - bb2.minz);
 
                 let cost = half_area1 * bb1_count as f32 + half_area2 * bb2_count as f32;
+                //println!(
+                //    "{} {} {} {} {} {} {} {:?} {:?}",
+                //    pos, pivot, bb1_count, bb2_count, half_area1, half_area2, cost, bb1, bb2
+                //);
                 if cost < optimal_cost {
                     optimal_axis = axis;
                     optimal_pos = pos;
                     optimal_cost = cost;
+                    optimal_pivot = pivot;
                 }
             }
         }
 
-        self.partition_shuffle(optimal_axis, optimal_pos, start, count)
+        // println!(
+        //     "{} {} {} {} {} {} {:?}",
+        //     optimal_axis, optimal_pos, optimal_cost, optimal_pivot, start, count, aabb
+        // );
+        self.partition_shuffle(optimal_axis, optimal_pos, start, count);
+        optimal_pivot
     }
 
     fn partition_shuffle(&mut self, axis: usize, pos: f32, start: u32, count: u32) -> u32 {
@@ -515,7 +544,7 @@ impl BVH {
     }
 
     // return min and max point
-    fn calculate_bounds(&self, first: u32, amount: u32) -> AABB {
+    fn calculate_bounds(&self, first: u32, amount: u32, centroids: bool) -> AABB {
         let mut max_point = Point {
             pos: [-100000000f32, -100000000f32, -100000000f32, 0f32],
         };
@@ -524,10 +553,17 @@ impl BVH {
         };
         for i in first..(first + amount) {
             let i = i as usize;
-            for j in 0..3 as usize {
-                let vertex = &self.vertices[self.triangles[self.indices[i] as usize][j] as usize];
-                max_point = Point::max(&(max_point), vertex);
-                min_point = Point::min(&(min_point), vertex);
+            if centroids {
+                let vertex = self.centroids[self.indices[i] as usize];
+                max_point = Point::max(max_point, vertex);
+                min_point = Point::min(min_point, vertex);
+            } else {
+                for j in 0..3 as usize {
+                    let vertex =
+                        self.vertices[self.triangles[self.indices[i] as usize][j] as usize];
+                    max_point = Point::max(max_point, vertex);
+                    min_point = Point::min(min_point, vertex);
+                }
             }
         }
         AABB {
@@ -543,7 +579,7 @@ impl BVH {
     }
 
     fn lerp(a: f32, b: f32, p: f32) -> f32 {
-        a * (1f32 - p) + (b * p)
+        a + (b - a) * p
     }
     pub fn intersects_triangle(&self, ray: &mut Ray, triangle_index: u32) {
         let a = &self.vertices[self.triangles[triangle_index as usize][0] as usize];
@@ -555,18 +591,18 @@ impl BVH {
         // Begin calculating determinant - also used to calculate u parameter
         // u_vec lies in view plane
         // length of a_to_c in view_plane = |u_vec| = |a_to_c|*sin(a_to_c, dir)
-        let u_vec = cross(&ray.d, &a_to_c);
+        let u_vec = cross(ray.d, a_to_c);
 
         // If determinant is near zero, ray lies in plane of triangle
         // The determinant corresponds to the parallelepiped volume:
         // det = 0 => [dir, a_to_b, a_to_c] not linearly independant
-        let det = dot(&a_to_b, &u_vec);
+        let det = dot(a_to_b, u_vec);
 
         // Only testing positive bound, thus enabling backface culling
         // If backface culling is not desired write:
         // det < 0.0001 && det > -0.0001
-        if det < 0.000000001 && det > -0.000000001 {
-            return;
+        if det < f32::EPSILON && det > -f32::EPSILON {
+            //return;
         }
 
         let inv_det = 1.0 / det;
@@ -575,7 +611,7 @@ impl BVH {
         let a_to_origin = ray.o - *a;
 
         // Calculate u parameter
-        let u = dot(&a_to_origin, &u_vec) * inv_det;
+        let u = dot(a_to_origin, u_vec) * inv_det;
 
         // Test bounds: u < 0 || u > 1 => outside of triangle
         if u < 0f32 || u > 1f32 {
@@ -583,16 +619,16 @@ impl BVH {
         }
 
         // Prepare to test v parameter
-        let v_vec = cross(&a_to_origin, &a_to_b);
+        let v_vec = cross(a_to_origin, a_to_b);
 
         // Calculate v parameter and test bound
-        let v = dot(&ray.d, &v_vec) * inv_det;
+        let v = dot(ray.d, v_vec) * inv_det;
         // The intersection lies outside of the triangle
         if v < 0.0 || u + v > 1.0 {
             return;
         }
 
-        let dist = dot(&a_to_c, &v_vec) * inv_det;
+        let dist = dot(a_to_c, v_vec) * inv_det;
 
         if dist > 0.0000001 && dist < ray.t {
             ray.t = dist;
@@ -631,7 +667,7 @@ impl BVH {
         let triangle = self.triangles[triangle_index as usize];
         let p1 = self.vertices[triangle[1] as usize] - self.vertices[triangle[0] as usize];
         let p2 = self.vertices[triangle[1] as usize] - self.vertices[triangle[2] as usize];
-        normalize(&cross(&normalize(&p1), &normalize(&p2)))
+        normalize(cross(normalize(p1), normalize(p2)))
     }
     pub fn fast_intersect(&self, ray: &mut Ray) {
         let mut stack = [0; 128];

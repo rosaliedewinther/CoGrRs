@@ -23,6 +23,7 @@ pub struct HelloWorld {
     pub time: f32,
     pub distance: f32,
     pub screen_buffer: Vec<[u8; 4]>,
+    pub frame_count: i32,
 }
 
 const SCREEN_WIDTH: u32 = 1280;
@@ -60,20 +61,29 @@ impl Game for HelloWorld {
             time: 0f32,
             distance: 1f32,
             screen_buffer,
+            frame_count: 1,
         }
     }
 
     fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult {
-        //self.time += 0.1;
+        self.time += dt;
+        self.frame_count += 1;
+        if self.frame_count == 10 {
+            println!(
+                "average seconds per frame: {}",
+                self.time / self.frame_count as f32
+            );
+            //return RenderResult::Exit;
+        }
         self.distance += input.mouse_state.scroll_delta;
         let ray_origin = Point::new(
             self.distance, //self.time.sin() * self.distance,
             0f32,
             0f32, // self.time.cos() * self.distance,
         );
-        let ray_direction = normalize(&Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
-        let ray_side = cross(&ray_direction, &normalize(&Point::new(0f32, 1f32, 0f32)));
-        let ray_up = cross(&ray_direction, &ray_side);
+        let ray_direction = normalize(Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
+        let ray_side = cross(ray_direction, normalize(Point::new(0f32, 1f32, 0f32)));
+        let ray_up = cross(ray_direction, ray_side);
         self.screen_buffer = (0..SCREEN_HEIGHT * SCREEN_WIDTH)
             .into_iter()
             .map(|index| {
@@ -86,7 +96,7 @@ impl Game for HelloWorld {
                         / (SCREEN_WIDTH as f32 / (SCREEN_WIDTH as f32 / SCREEN_HEIGHT as f32))
                     + ray_up * (y as f32 - HALF_HEIGHT as f32) / SCREEN_HEIGHT as f32;
 
-                let ray_direction = normalize(&(screen_point - ray_origin));
+                let ray_direction = normalize(screen_point - ray_origin);
                 let ray_r_direction = Point::new(
                     1f32 / ray_direction.pos[0],
                     1f32 / ray_direction.pos[1],
@@ -114,7 +124,7 @@ impl Game for HelloWorld {
                 if ray.t < 10000000f32 {
                     let normal = self.bvh.triangle_normal(ray.prim);
                     let intensity =
-                        (dot(&normal, &normalize(&Point::new(1f32, -1f32, 1f32))) + 1f32) / 10f32;
+                        (dot(normal, normalize(Point::new(1f32, -1f32, 1f32))) + 1f32) / 10f32;
 
                     [
                         (intensity * 255f32) as u8,
