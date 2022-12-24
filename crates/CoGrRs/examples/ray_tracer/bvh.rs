@@ -321,29 +321,30 @@ impl BVH {
         }
     }
 
+    pub fn build_qbvh(&self) -> BVH {
+        let centroids = self
+            .triangles
+            .iter()
+            .map(|t| {
+                (self.vertices[t[0] as usize]
+                    + self.vertices[t[1] as usize]
+                    + self.vertices[t[2] as usize])
+                    / 3f32
+            })
+            .collect();
+
+        let mut new_bvh = BVH {
+            vertices: self.vertices.clone(),
+            triangles: self.triangles.clone(),
+            indices: vec![0; self.indices.len()],
+            bvh_nodes: vec![BVHNode::zeroed(); self.bvh_nodes.len()],
+            centroids,
+        };
+        new_bvh
+    }
+    pub fn flatten(&self, new_bvh: &mut BVH, node_index: u32) {}
+
     pub fn build_bvh(&mut self) {
-        //let aabb = self.calculate_bounds(0, self.triangles.len() as u32);
-
-        //let scale_factor = Point {
-        //    pos: [
-        //        1f32 / (aabb.maxx - aabb.minx),
-        //        1f32 / (aabb.maxy - aabb.miny),
-        //        1f32 / (aabb.maxz - aabb.minz),
-        //        0f32,
-        //    ],
-        //};
-        //let offset = Point {
-        //    pos: [
-        //        0f32 - (aabb.maxx + aabb.minx) * scale_factor.pos[0] / 2f32,
-        //        0f32 - (aabb.maxy + aabb.miny) * scale_factor.pos[1] / 2f32,
-        //        0f32 - (aabb.maxz + aabb.minz) * scale_factor.pos[2] / 2f32,
-        //        0f32,
-        //    ],
-        //};
-        //self.vertices
-        //    .iter_mut()
-        //    .for_each(|vertex| *vertex = (*vertex) * scale_factor + offset);
-
         self.centroids = self
             .triangles
             .iter()
@@ -361,24 +362,14 @@ impl BVH {
         let aabb = self.calculate_bounds(0, self.triangles.len() as u32, false);
         self.set_bound(0, &aabb);
 
-        self.subdivide(0, 0, &mut 2, 0);
+        let mut new_node_index = 2;
+
+        self.subdivide(0, 0, &mut new_node_index, 0);
         println!("done building bvh");
 
-        //self.print_tree(0, 0);
-        /*for (i, node) in self.bvh_nodes.iter().enumerate() {
-            println!(
-                "{}: {} {} {} {} {} {} {} {}",
-                i,
-                node.count,
-                node.left_first,
-                node.maxx,
-                node.maxy,
-                node.maxz,
-                node.minx,
-                node.miny,
-                node.minz,
-            );
-        }*/
+        self.centroids = Vec::new();
+        self.bvh_nodes.truncate(new_node_index as usize);
+        self.bvh_nodes.shrink_to_fit();
     }
 
     fn print_tree(&self, index: u32, depth: u32) {
@@ -411,6 +402,12 @@ impl BVH {
     // current_bvh_index.left_first = ???
     // start = start in indices buffer
     // pool_index = first free spot in bvh_nodes
+
+    // count performance results
+    // 2 = 0.1866s
+    // 3 = 0.1857s
+    // 4 = 0.187s
+    // 5 = 0.1901s
     fn subdivide(
         &mut self,
         current_bvh_index: usize,
@@ -418,10 +415,6 @@ impl BVH {
         pool_index: &mut u32,
         depth: u32,
     ) {
-        //println!(
-        //    "depth: {} start: {}, count: {}",
-        //    depth, start, self.bvh_nodes[current_bvh_index].count
-        //);
         if self.bvh_nodes[current_bvh_index].count <= 3 {
             self.bvh_nodes[current_bvh_index].left_first = start as i32;
             return;
@@ -430,12 +423,7 @@ impl BVH {
         *pool_index += 2;
         self.bvh_nodes[current_bvh_index].left_first = index as i32;
 
-        let pivot = self.partition(
-            current_bvh_index,
-            start,
-            self.bvh_nodes[current_bvh_index].count as u32,
-        );
-        //println!("pivot {}", pivot);
+        let pivot = self.partition(start, self.bvh_nodes[current_bvh_index].count as u32);
         let left_count = pivot - start;
         self.bvh_nodes[index as usize].count = left_count as i32;
         let bounds = self.calculate_bounds(start, left_count, false);
@@ -445,12 +433,6 @@ impl BVH {
         self.bvh_nodes[index as usize + 1].count = right_count;
         let bounds = self.calculate_bounds(pivot, right_count as u32, false);
         self.set_bound(index as usize + 1, &bounds);
-
-        //println!("parent: {:?}", self.bvh_nodes[current_bvh_index]);
-        //println!("left: {:?}", self.bvh_nodes[index as usize]);
-        //println!("right: {:?}", self.bvh_nodes[index as usize + 1]);
-        //
-        //panic!("");
 
         self.subdivide(index as usize, start, pool_index, depth + 1);
         self.subdivide(index as usize + 1, pivot, pool_index, depth + 1);
@@ -466,7 +448,7 @@ impl BVH {
         self.bvh_nodes[bvh_index].minz = aabb.minz;
     }
 
-    fn partition(&mut self, current_bvh_index: usize, start: u32, count: u32) -> u32 {
+    fn partition(&mut self, start: u32, count: u32) -> u32 {
         let bins = 8;
         let mut optimal_axis = 0;
         let mut optimal_pos = 0f32;
@@ -474,12 +456,6 @@ impl BVH {
         let mut optimal_cost = f32::MAX;
 
         let aabb = self.calculate_bounds(start, count, true);
-
-        //if count <= 10 {
-        //    for i in start..(start + count) {
-        //        println!("{:?}", self.centroids[self.indices[i as usize] as usize]);
-        //    }
-        //}
 
         for axis in 0..3 {
             for b in 1..bins {
@@ -505,10 +481,6 @@ impl BVH {
                     + (bb2.maxy - bb2.miny) * (bb2.maxz - bb2.minz);
 
                 let cost = half_area1 * bb1_count as f32 + half_area2 * bb2_count as f32;
-                //println!(
-                //    "{} {} {} {} {} {} {} {:?} {:?}",
-                //    pos, pivot, bb1_count, bb2_count, half_area1, half_area2, cost, bb1, bb2
-                //);
                 if cost < optimal_cost {
                     optimal_axis = axis;
                     optimal_pos = pos;
@@ -517,11 +489,6 @@ impl BVH {
                 }
             }
         }
-
-        // println!(
-        //     "{} {} {} {} {} {} {:?}",
-        //     optimal_axis, optimal_pos, optimal_cost, optimal_pivot, start, count, aabb
-        // );
         self.partition_shuffle(optimal_axis, optimal_pos, start, count);
         optimal_pivot
     }
@@ -670,7 +637,7 @@ impl BVH {
         normalize(cross(normalize(p1), normalize(p2)))
     }
     pub fn fast_intersect(&self, ray: &mut Ray) {
-        let mut stack = [0; 128];
+        let mut stack = [0; 32];
         let mut node_index = 0;
         let mut stack_ptr = 0;
 
@@ -722,6 +689,6 @@ impl BVH {
                 }
             }
         }
-        //ray.t = loop_counter as f32;
+        ray.t = loop_counter as f32;
     }
 }

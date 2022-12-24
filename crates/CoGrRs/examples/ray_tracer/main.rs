@@ -59,7 +59,7 @@ impl Game for HelloWorld {
             ui,
             bvh,
             time: 0f32,
-            distance: 1f32,
+            distance: 100f32,
             screen_buffer,
             frame_count: 1,
         }
@@ -77,15 +77,15 @@ impl Game for HelloWorld {
         }
         self.distance += input.mouse_state.scroll_delta;
         let ray_origin = Point::new(
-            self.distance, //self.time.sin() * self.distance,
+            self.time.sin() * self.distance,
             0f32,
-            0f32, // self.time.cos() * self.distance,
+            self.time.cos() * self.distance,
         );
         let ray_direction = normalize(Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
         let ray_side = cross(ray_direction, normalize(Point::new(0f32, 1f32, 0f32)));
         let ray_up = cross(ray_direction, ray_side);
-        self.screen_buffer = (0..SCREEN_HEIGHT * SCREEN_WIDTH)
-            .into_iter()
+        (0..SCREEN_HEIGHT * SCREEN_WIDTH)
+            .into_par_iter()
             .map(|index| {
                 let x = index % SCREEN_WIDTH;
                 let y = index / SCREEN_WIDTH;
@@ -114,12 +114,12 @@ impl Game for HelloWorld {
 
                 self.bvh.fast_intersect(&mut ray);
 
-                /*return [
+                return [
                     (ray.t) as u8, //(intensity * 255f32) as u8,
                     (ray.t) as u8, //(intensity * 255f32) as u8,
                     (ray.t) as u8, //(intensity * 255f32) as u8,
                     255,
-                ];*/
+                ];
 
                 if ray.t < 10000000f32 {
                     let normal = self.bvh.triangle_normal(ray.prim);
@@ -136,7 +136,7 @@ impl Game for HelloWorld {
                     [0, 0, 0, 255]
                 }
             })
-            .collect(); //.collect_into_vec(&mut self.screen_buffer);
+            .collect_into_vec(&mut self.screen_buffer);
 
         self.gpu_context.set_texture_data(
             "depth_buffer",
