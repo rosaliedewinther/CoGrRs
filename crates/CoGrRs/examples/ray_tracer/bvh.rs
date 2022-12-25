@@ -336,111 +336,6 @@ impl BVH {
         }
     }
 
-    pub fn build_qbvh(&self) -> BVH {
-        let centroids = self
-            .triangles
-            .iter()
-            .map(|t| {
-                (self.vertices[t[0] as usize]
-                    + self.vertices[t[1] as usize]
-                    + self.vertices[t[2] as usize])
-                    / 3f32
-            })
-            .collect();
-
-        let mut new_bvh = BVH {
-            vertices: self.vertices.clone(),
-            triangles: self.triangles.clone(),
-            indices: self.indices.clone(),
-            bvh_nodes: vec![BVHNode::zeroed(); self.bvh_nodes.len() * 2],
-            centroids,
-        };
-        println!("{:?}", new_bvh.bvh_nodes[1]);
-        new_bvh.bvh_nodes[0] = self.bvh_nodes[0];
-        if new_bvh.bvh_nodes[0].count == 0 {
-            new_bvh.bvh_nodes[0].left_first = 4;
-        }
-        self.flatten(0, 0, &mut new_bvh, &mut 4, 0);
-        new_bvh
-    }
-
-    //loop invariants:
-    // current_bvh_index.count = the number of primitives which still have to be divided
-    // current_bvh_index.aabb = correct
-    // current_bvh_index.left_first = ???
-    // start = start in indices buffer
-    // pool_index = first free spot in bvh_nodes
-    pub fn flatten(
-        &self,
-        current_self_bvh_index: u32,
-        current_new_bvh_index: u32,
-        new_bvh: &mut BVH,
-        node_index: &mut u32,
-        depth: u32,
-    ) {
-        //println!("{} {} {}", current_bvh_index, node_index, depth);
-        if self.bvh_nodes[current_self_bvh_index as usize].count > 0 {
-            return;
-        }
-
-        let left_child = self.bvh_nodes[current_self_bvh_index as usize].left_first;
-        let right_child = self.bvh_nodes[current_self_bvh_index as usize].left_first + 1;
-
-        let mut new_node_indices = [1; 4]; // index 1 is an unused node and will have count = 0 and left_first = 0
-        let mut new_node_index = 0;
-        if self.bvh_nodes[left_child as usize].count == 0 {
-            new_node_indices[new_node_index] = self.bvh_nodes[left_child as usize].left_first;
-            new_node_index += 1;
-            new_node_indices[new_node_index] = self.bvh_nodes[left_child as usize].left_first + 1;
-            new_node_index += 1;
-        } else {
-            new_node_indices[new_node_index] = left_child;
-            new_node_index += 1;
-        }
-        if self.bvh_nodes[right_child as usize].count == 0 {
-            new_node_indices[new_node_index] = self.bvh_nodes[right_child as usize].left_first;
-            new_node_index += 1;
-            new_node_indices[new_node_index] = self.bvh_nodes[right_child as usize].left_first + 1;
-            new_node_index += 1;
-        } else {
-            new_node_indices[new_node_index] = right_child;
-            new_node_index += 1;
-        }
-
-        for i in 0..4 {
-            new_bvh.bvh_nodes[*node_index as usize + i] =
-                self.bvh_nodes[new_node_indices[i] as usize];
-        }
-
-        let old_index = *node_index;
-        new_bvh.bvh_nodes[current_new_bvh_index as usize].left_first = old_index as i32;
-        *node_index += 4;
-
-        /*println!(
-            "self_id: {} bvh_id: {} new_id: {} depth: {} bvh: {:?}",
-            current_self_bvh_index,
-            current_new_bvh_index,
-            node_index,
-            depth,
-            new_bvh.bvh_nodes[current_new_bvh_index as usize]
-        );*/
-
-        for i in 0..new_node_index {
-            /*println!(
-                "starting at: {} {:?}",
-                old_index + i as u32,
-                new_bvh.bvh_nodes[old_index as usize + i as usize]
-            );*/
-            self.flatten(
-                new_node_indices[i as usize] as u32,
-                old_index + i as u32,
-                new_bvh,
-                node_index,
-                depth + 1,
-            );
-        }
-    }
-
     pub fn get_bvh_statistics(&self, node_width: u32) -> String {
         format!(
             "max depth: {}, total_area: {}, total_internal_nodes: {}",
@@ -797,13 +692,13 @@ impl BVH {
         normalize(cross(normalize(p1), normalize(p2)))
     }
     pub fn fast_intersect(&self, ray: &mut Ray) {
-        let mut stack = [0; 32];
+        let mut stack = [(0usize, 0f32); 32];
         let mut node_index = 0;
         let mut stack_ptr = 0;
 
         let mut loop_counter = 0;
 
-        loop {
+        'outer: loop {
             loop_counter += 1;
             //println!("{:?}", self.bvh_nodes[node_index]);
             //println!("{} {} {:?}", node_index, stack_ptr, stack);
@@ -817,9 +712,14 @@ impl BVH {
                 if stack_ptr == 0 {
                     break;
                 } else {
-                    stack_ptr -= 1;
-                    node_index = stack[stack_ptr];
-                    //println!("stack_ptr -= 1");
+                    let mut t = f32::MAX;
+                    while t >= ray.t {
+                        if stack_ptr == 0 {
+                            break 'outer;
+                        }
+                        stack_ptr -= 1;
+                        (node_index, t) = stack[stack_ptr];
+                    }
                     continue;
                 }
             }
@@ -836,127 +736,23 @@ impl BVH {
                 if stack_ptr == 0 {
                     break;
                 } else {
-                    stack_ptr -= 1;
-                    node_index = stack[stack_ptr];
+                    let mut t = f32::MAX;
+                    while t >= ray.t {
+                        if stack_ptr == 0 {
+                            break 'outer;
+                        }
+                        stack_ptr -= 1;
+                        (node_index, t) = stack[stack_ptr];
+                    }
                     //println!("stack_ptr -= 1");
                 }
             } else {
                 node_index = child1 as usize;
                 if dist2 != f32::MAX {
-                    stack[stack_ptr] = child2 as usize;
+                    stack[stack_ptr] = (child2 as usize, dist2);
                     stack_ptr += 1;
                     //println!("stack_ptr += 1");
                 }
-            }
-        }
-        //ray.t = loop_counter as f32;
-    }
-    pub fn fast_intersect_nbvh<const N: usize>(&self, ray: &mut Ray) {
-        let mut stack = [(0usize, 0f32); 64];
-        let mut node_index = 0;
-        let mut stack_ptr = 0;
-
-        let mut loop_counter = 0;
-
-        'outer: loop {
-            loop_counter += 1;
-            //println!("{:?}", self.bvh_nodes[node_index]);
-            if loop_counter > 1000 {
-                println!(
-                    "{} {} {} {} {} {:?}",
-                    loop_counter,
-                    node_index,
-                    stack_ptr,
-                    self.bvh_nodes[node_index].left_first,
-                    self.bvh_nodes[node_index].count,
-                    stack
-                );
-            }
-            if self.bvh_nodes[node_index].count > 0 {
-                for i in 0..self.bvh_nodes[node_index].count {
-                    self.intersects_triangle(
-                        ray,
-                        (self.indices[(self.bvh_nodes[node_index].left_first + i) as usize]) as u32,
-                    )
-                }
-                if stack_ptr == 0 {
-                    break;
-                } else {
-                    let mut t = f32::MAX;
-                    while t >= ray.t {
-                        if stack_ptr == 0 {
-                            break 'outer;
-                        }
-                        stack_ptr -= 1;
-                        (node_index, t) = stack[stack_ptr];
-                    }
-                    continue;
-                }
-            }
-            let mut children = [0u32; N];
-            for i in 0..N {
-                children[i] = (self.bvh_nodes[node_index].left_first + i as i32) as u32;
-            }
-
-            let mut dist = [0f32; N];
-            for i in 0..N {
-                dist[i] = if !(self.bvh_nodes[children[i] as usize].left_first == 0
-                    && self.bvh_nodes[children[i] as usize].count == 0)
-                // dont intersect if it is internal node and points to 0
-                {
-                    self.intersect_aabb(ray, children[i])
-                } else {
-                    f32::MAX
-                };
-            }
-            let mut indices = [0, 1, 2, 3]; //hardcoded for 4 way
-
-            if dist[indices[0]] > dist[indices[1]] {
-                indices.swap(0, 1);
-            }
-            if dist[indices[2]] > dist[indices[3]] {
-                indices.swap(2, 3);
-            }
-            if dist[indices[0]] > dist[indices[2]] {
-                indices.swap(0, 2);
-            }
-            if dist[indices[1]] > dist[indices[3]] {
-                indices.swap(1, 3);
-            }
-            if dist[indices[1]] > dist[indices[2]] {
-                indices.swap(1, 2);
-            }
-
-            if dist[indices[0]] == f32::MAX {
-                if stack_ptr == 0 {
-                    break;
-                } else {
-                    let mut t = f32::MAX;
-                    while t >= ray.t {
-                        if stack_ptr == 0 {
-                            break 'outer;
-                        }
-                        stack_ptr -= 1;
-                        (node_index, t) = stack[stack_ptr];
-                    }
-                }
-            } else {
-                node_index = children[indices[0]] as usize;
-                if dist[indices[1]] != f32::MAX {
-                    stack[stack_ptr] = (children[indices[1]] as usize, dist[indices[1]]);
-                    stack_ptr += 1;
-                }
-                if dist[indices[2]] != f32::MAX {
-                    stack[stack_ptr] = (children[indices[2]] as usize, dist[indices[2]]);
-                    stack_ptr += 1;
-                }
-                if dist[indices[3]] != f32::MAX {
-                    stack[stack_ptr] = (children[indices[3]] as usize, dist[indices[3]]);
-                    stack_ptr += 1;
-                }
-            }
-            if stack_ptr > 200 {
-                println!("{:?}", stack);
             }
         }
         //ray.t = loop_counter as f32;

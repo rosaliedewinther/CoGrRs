@@ -20,7 +20,6 @@ pub struct HelloWorld {
     pub gpu_context: Context,
     pub ui: MainGui,
     pub bvh: BVH,
-    pub qbvh: BVH,
     pub time: f32,
     pub distance: f32,
     pub screen_buffer: Vec<[u8; 4]>,
@@ -53,9 +52,6 @@ impl Game for HelloWorld {
         let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
         println!("{}", bvh.get_bvh_statistics(2));
-        let qbvh = bvh.build_qbvh();
-        println!("built qbvh");
-        println!("{}", qbvh.get_bvh_statistics(4));
 
         let ui = MainGui::new(&gpu_context, window);
 
@@ -63,7 +59,6 @@ impl Game for HelloWorld {
             gpu_context,
             ui,
             bvh,
-            qbvh,
             time: 0f32,
             distance: 1f32,
             screen_buffer,
