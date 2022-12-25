@@ -16,11 +16,6 @@ use bytemuck::{Pod, Zeroable};
 pub struct Point {
     pub pos: [f32; 4],
 }
-#[repr(C, align(64))]
-#[derive(Pod, Zeroable, Copy, Clone)]
-pub struct Triangle {
-    points: [Point; 4],
-}
 #[repr(C, align(32))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct BVHNode {

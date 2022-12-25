@@ -13,7 +13,7 @@ pollster = {version = "0.2", default-features = false}
 bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
 inline-spirv = {version = "0.1", default-features = false, features = ["glsl"]}
 futures-intrusive = "0.5"
-inline-spirv-runtime = {git="https://github.com/jasperdewinther/inline-spirv-rs/", rev="b313d4f"}
+inline-spirv-runtime = {git="https://github.com/jasperdewinther/inline-spirv-rs/", rev="efa57ed"}
 log = {version = "0.4", default-features = false}
 rspirv-reflect = "0.7"
 fxhash = "0.2"

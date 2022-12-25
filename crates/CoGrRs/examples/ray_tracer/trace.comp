@@ -1,0 +1,65 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+
+struct Ray {
+    vec4 pos;
+    vec4 dir;
+    vec4 dir_i;
+    float t;
+    uint prim_id;
+    uint _padding1;
+    uint _padding2;
+};
+struct BVHNode{
+    float minx;
+    float miny;
+    float minz;
+    float maxx;
+    float maxy;
+    float maxz;
+    int left_first;
+    int count;
+};
+
+layout(rgba8, binding=0) uniform image2D to_draw_texture;
+layout(std430, binding=1) buffer vertices_block { vec4 vertices[]; };
+layout(std430, binding=2) buffer triangles_block { uvec4 triangles[]; };
+layout(std430, binding=3) buffer indices_block { uint indices[]; };
+layout(std430, binding=4) buffer bvh_nodes_block { BVHNode bvh_nodes[]; };
+
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+layout(push_constant) uniform constants
+{
+    vec4 camera_dir;
+    vec4 camera_pos;
+    vec4 camera_side;
+    vec4 camera_up;
+    float width;
+    float half_width;
+    float height;
+    float half_height;
+} gpu_data;
+
+#define FLT_MAX 3.402823466e+38
+
+void main() {
+    uvec3 global_invocation_id = gl_GlobalInvocationID;
+    uint x = global_invocation_id.x;
+    uint y = global_invocation_id.y;
+    ivec2 pos = ivec2(x,y);
+
+    vec4 dir = gpu_data.camera_pos
+        + gpu_data.camera_dir
+        + gpu_data.camera_side * (float(x) - gpu_data.half_width)
+            / (gpu_data.width / ( gpu_data.width / gpu_data.height))
+        + gpu_data.camera_up * (float(y) - gpu_data.half_height) /  gpu_data.height;
+
+    dir = normalize(dir - gpu_data.camera_pos);
+    vec4 dirr = 1/dir;
+    float t = FLT_MAX;
+    uint prim = -1;
+
+    imageStore(to_draw_texture, pos, vec4(0));
+}
+

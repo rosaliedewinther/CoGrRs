@@ -194,8 +194,15 @@ impl MainGui {
             },
         );
     }
-    pub fn set_toggle(&mut self, name: &str, state: bool) {
-        self.toggles.insert(name.to_string(), state);
+    // returns the new value
+    pub fn set_toggle(&mut self, name: &str, state: &mut bool) -> bool {
+        match self.toggles.get(name) {
+            Some(toggle) => *state = *toggle,
+            None => {
+                self.toggles.insert(name.to_string(), *state);
+            }
+        };
+        *state
     }
     pub fn remove_toggle(&mut self, name: &str) {
         self.toggles.remove(name);

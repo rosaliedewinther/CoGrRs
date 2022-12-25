@@ -28,10 +28,10 @@ impl KeyboardState {
         self.going_down.remove(&key);
     }
     pub fn just_pressed(&self, key: VirtualKeyCode) -> bool {
-        self.going_down.iter().any(|k| *k == key)
+        self.going_down.contains(&key)
     }
     pub fn down(&self, key: VirtualKeyCode) -> bool {
-        self.going_down.iter().any(|k| *k == key) || self.down.iter().any(|k| *k == key)
+        self.going_down.contains(&key) || self.down.contains(&key)
     }
     pub fn any_down(&self) -> bool {
         !self.down.is_empty() || !self.going_down.is_empty()

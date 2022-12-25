@@ -758,7 +758,7 @@ dependencies = [
 [[package]]
 name = "inline-spirv-runtime"
 version = "0.1.4"
-source = "git+https://github.com/jasperdewinther/inline-spirv-rs/?rev=b313d4f#b313d4fc34cb7059b5277bcac8720975268d2531"
+source = "git+https://github.com/jasperdewinther/inline-spirv-rs/?rev=efa57ed#efa57ed72021f69c0ac08eb0571a8767ac4a2de5"
 dependencies = [
  "quote",
  "shaderc",

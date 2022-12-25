@@ -100,6 +100,7 @@ impl ComputePipeline {
             }),
             None => (),
         };
+        println!("{:?}", push_constant_range_vec);
         let pipeline_layout =
             gpu_context
                 .device

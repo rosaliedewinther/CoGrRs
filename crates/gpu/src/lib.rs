@@ -206,8 +206,10 @@ impl Context {
     pub fn execute_encoder(&mut self, encoder: wgpu::CommandEncoder) {
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
-        let surface = std::mem::replace(&mut self.surface_texture, None);
-        surface.expect("unable to present surface").present();
+        if self.surface_texture.is_some() {
+            let surface = std::mem::replace(&mut self.surface_texture, None);
+            surface.expect("unable to present surface").present();
+        }
     }
     pub fn dispatch_pipeline<PushConstants>(
         &self,
@@ -222,6 +224,7 @@ impl Context {
             .get(pipeline_name)
             .unwrap_or_else(|| panic!("resource does not exist: {}", pipeline_name));
         {
+            println!("pipeline {}: {:?}", pipeline_name, pipeline);
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some(pipeline_name),
             });

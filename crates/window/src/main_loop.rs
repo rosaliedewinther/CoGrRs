@@ -78,10 +78,11 @@ where
             let dt = on_render_timer.elapsed().as_secs_f32();
             on_render_timer = Instant::now();
             match game.on_render(&mut window_input, dt, &window) {
-                RenderResult::Continue => {}
+                RenderResult::Continue => {
+                    window_input.update();
+                }
                 RenderResult::Exit => *control_flow = ControlFlow::Exit,
             };
-            window_input.update();
         }
         Event::MainEventsCleared => {
             // RedrawRequested will only trigger once, unless we manually
