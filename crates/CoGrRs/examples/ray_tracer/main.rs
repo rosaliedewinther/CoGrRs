@@ -20,6 +20,7 @@ pub struct HelloWorld {
     pub gpu_context: Context,
     pub ui: MainGui,
     pub bvh: BVH,
+    pub qbvh: BVH,
     pub time: f32,
     pub distance: f32,
     pub screen_buffer: Vec<[u8; 4]>,
@@ -51,6 +52,10 @@ impl Game for HelloWorld {
 
         let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
+        println!("{}", bvh.get_bvh_statistics(2));
+        let qbvh = bvh.build_qbvh();
+        println!("built qbvh");
+        println!("{}", qbvh.get_bvh_statistics(4));
 
         let ui = MainGui::new(&gpu_context, window);
 
@@ -58,8 +63,9 @@ impl Game for HelloWorld {
             gpu_context,
             ui,
             bvh,
+            qbvh,
             time: 0f32,
-            distance: 100f32,
+            distance: 1f32,
             screen_buffer,
             frame_count: 1,
         }
@@ -77,15 +83,15 @@ impl Game for HelloWorld {
         }
         self.distance += input.mouse_state.scroll_delta;
         let ray_origin = Point::new(
-            self.time.sin() * self.distance,
+            self.distance, //self.time.sin() * self.distance,
             0f32,
-            self.time.cos() * self.distance,
+            0f32, //self.time.cos() * self.distance,
         );
         let ray_direction = normalize(Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
         let ray_side = cross(ray_direction, normalize(Point::new(0f32, 1f32, 0f32)));
         let ray_up = cross(ray_direction, ray_side);
-        (0..SCREEN_HEIGHT * SCREEN_WIDTH)
-            .into_par_iter()
+        self.screen_buffer = (0..SCREEN_HEIGHT * SCREEN_WIDTH)
+            .into_iter()
             .map(|index| {
                 let x = index % SCREEN_WIDTH;
                 let y = index / SCREEN_WIDTH;
@@ -113,13 +119,14 @@ impl Game for HelloWorld {
                 };
 
                 self.bvh.fast_intersect(&mut ray);
+                //self.qbvh.fast_intersect_nbvh::<4>(&mut ray);
 
-                return [
+                /*return [
                     (ray.t) as u8, //(intensity * 255f32) as u8,
                     (ray.t) as u8, //(intensity * 255f32) as u8,
                     (ray.t) as u8, //(intensity * 255f32) as u8,
                     255,
-                ];
+                ];*/
 
                 if ray.t < 10000000f32 {
                     let normal = self.bvh.triangle_normal(ray.prim);
@@ -136,7 +143,7 @@ impl Game for HelloWorld {
                     [0, 0, 0, 255]
                 }
             })
-            .collect_into_vec(&mut self.screen_buffer);
+            .collect(); //.collect_into_vec(&mut self.screen_buffer);
 
         self.gpu_context.set_texture_data(
             "depth_buffer",
