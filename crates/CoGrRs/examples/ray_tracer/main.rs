@@ -64,7 +64,7 @@ impl Game for RayTracer {
 
         let screen_buffer = vec![[0; 4]; (WIDTH * HEIGHT) as usize];
 
-        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/dragon.obj");
+        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/teapot.obj");
         bvh.build_bvh();
         println!("{}", bvh.get_bvh_statistics(2));
 
@@ -153,9 +153,6 @@ impl Game for RayTracer {
         }
 
         let mut encoder = self.gpu_context.get_encoder_for_draw();
-
-        self.gpu_context
-            .dispatch_pipeline("draw", &mut encoder, &[0; 0]);
 
         self.gpu_context.image_buffer_to_screen(&mut encoder);
 

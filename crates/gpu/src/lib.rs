@@ -224,7 +224,6 @@ impl Context {
             .get(pipeline_name)
             .unwrap_or_else(|| panic!("resource does not exist: {}", pipeline_name));
         {
-            println!("pipeline {}: {:?}", pipeline_name, pipeline);
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some(pipeline_name),
             });

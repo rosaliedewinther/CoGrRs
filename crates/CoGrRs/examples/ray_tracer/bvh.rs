@@ -333,10 +333,16 @@ impl BVH {
 
     pub fn get_bvh_statistics(&self, node_width: u32) -> String {
         format!(
-            "max depth: {}, total_area: {}, total_internal_nodes: {}",
+            "max depth: {}
+            total_area: {}
+            total_internal_nodes: {}
+            triangle_count: {}
+            vertex_count: {}",
             self.get_max_depth(0, 0, node_width),
             self.get_total_area(0, node_width),
-            self.total_internal_nodes(0, node_width)
+            self.total_internal_nodes(0, node_width),
+            self.triangles.len(),
+            self.vertices.len()
         )
     }
 
@@ -654,7 +660,6 @@ impl BVH {
     // returns nea/far
     pub fn intersect_aabb(&self, ray: &mut Ray, bvh_node: u32) -> f32 {
         let bvh_node = &self.bvh_nodes[bvh_node as usize];
-        let d_r = 1f32 / ray.d;
         let tx1 = (bvh_node.minx - ray.o.pos[0]) * ray.d_r.pos[0];
         let tx2 = (bvh_node.maxx - ray.o.pos[0]) * ray.d_r.pos[0];
         let mut tmin = f32::min(tx1, tx2);
