@@ -333,11 +333,7 @@ impl BVH {
 
     pub fn get_bvh_statistics(&self, node_width: u32) -> String {
         format!(
-            "max depth: {}
-            total_area: {}
-            total_internal_nodes: {}
-            triangle_count: {}
-            vertex_count: {}",
+            "max depth: {}\ntotal_area: {}\ntotal_internal_nodes: {}\ntriangle_count: {}\nvertex_count: {}",
             self.get_max_depth(0, 0, node_width),
             self.get_total_area(0, node_width),
             self.total_internal_nodes(0, node_width),
@@ -660,20 +656,20 @@ impl BVH {
     // returns nea/far
     pub fn intersect_aabb(&self, ray: &mut Ray, bvh_node: u32) -> f32 {
         let bvh_node = &self.bvh_nodes[bvh_node as usize];
-        let tx1 = (bvh_node.minx - ray.o.pos[0]) * ray.d_r.pos[0];
-        let tx2 = (bvh_node.maxx - ray.o.pos[0]) * ray.d_r.pos[0];
-        let mut tmin = f32::min(tx1, tx2);
-        let mut tmax = f32::max(tx1, tx2);
-        let ty1 = (bvh_node.miny - ray.o.pos[1]) * ray.d_r.pos[1];
-        let ty2 = (bvh_node.maxy - ray.o.pos[1]) * ray.d_r.pos[1];
-        tmin = f32::max(tmin, f32::min(ty1, ty2));
-        tmax = f32::min(tmax, f32::max(ty1, ty2));
-        let tz1 = (bvh_node.minz - ray.o.pos[2]) * ray.d_r.pos[2];
-        let tz2 = (bvh_node.maxz - ray.o.pos[2]) * ray.d_r.pos[2];
-        tmin = f32::max(tmin, f32::min(tz1, tz2));
-        tmax = f32::min(tmax, f32::max(tz1, tz2));
-        if tmax >= tmin && tmin < ray.t && tmax > 0f32 {
-            tmin
+        let vMax = Point {
+            pos: [bvh_node.maxx, bvh_node.maxy, bvh_node.maxz, 0f32],
+        };
+        let vMin = Point {
+            pos: [bvh_node.minx, bvh_node.miny, bvh_node.minz, 0f32],
+        };
+        let tMin = (vMin - ray.o) * ray.d_r;
+        let tMax = (vMax - ray.o) * ray.d_r;
+        let t1 = Point::min(tMin, tMax);
+        let t2 = Point::max(tMin, tMax);
+        let tNear = f32::max(f32::max(t1.pos[0], t1.pos[1]), t1.pos[2]);
+        let tFar = f32::min(f32::min(t2.pos[0], t2.pos[1]), t2.pos[2]);
+        if tFar >= tNear && tNear < ray.t && tFar > 0f32 {
+            tNear
         } else {
             f32::MAX
         }

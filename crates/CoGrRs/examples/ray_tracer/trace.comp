@@ -34,6 +34,10 @@ layout(push_constant) uniform constants
     float half_width;
     float height;
     float half_height;
+    float time;
+    uint padding1;
+    uint padding2;
+    uint padding3;
 } gpu_data;
 
 #define FLT_MAX 3.402823466e+38
@@ -128,14 +132,14 @@ void traverse(
             if (stack_ptr == 0){
                 break;
             } else {
-                float new_t = FLT_MAX;
-                while (ray_t >= new_t){
+                float t = FLT_MAX;
+                while (t >= ray_t){
                     if (stack_ptr == 0){
                         return;
                     }
                     stack_ptr-=1;
                     StackNode sn = stack[stack_ptr];
-                    new_t = sn.dist;
+                    t = sn.dist;
                     node_index = sn.bvh_node_index;
                 }
                 continue;
@@ -172,14 +176,14 @@ void traverse(
             if (stack_ptr == 0){
                 return;
             } else {
-                float new_t = FLT_MAX;
-                while (ray_t >= new_t){
+                float t = FLT_MAX;
+                while (t >= ray_t){
                     if (stack_ptr == 0){
                         return;
                     }
                     stack_ptr-=1;
                     StackNode sn = stack[stack_ptr];
-                    new_t = sn.dist;
+                    t = sn.dist;
                     node_index = sn.bvh_node_index;
                 }
             }

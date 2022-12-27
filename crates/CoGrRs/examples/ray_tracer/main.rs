@@ -41,6 +41,10 @@ struct CameraData {
     pub half_width: f32,
     pub height: f32,
     pub half_height: f32,
+    pub time: f32,
+    padding1: u32,
+    padding2: u32,
+    padding3: u32,
 }
 
 const WIDTH: u32 = 1280;
@@ -64,7 +68,7 @@ impl Game for RayTracer {
 
         let screen_buffer = vec![[0; 4]; (WIDTH * HEIGHT) as usize];
 
-        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/teapot.obj");
+        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/lucy.obj");
         bvh.build_bvh();
         println!("{}", bvh.get_bvh_statistics(2));
 
@@ -92,7 +96,7 @@ impl Game for RayTracer {
         );
         gpu_context.set_buffer_data(
             "indices_block",
-            bvh.vertices.as_slice(),
+            bvh.indices.as_slice(),
             std::mem::size_of::<u32>() * bvh.indices.len(),
             0,
         );
@@ -127,9 +131,9 @@ impl Game for RayTracer {
         }
         self.distance += input.mouse_state.scroll_delta;
         let ray_origin = Point::new(
-            self.distance, //self.time.sin() * self.distance,
+            self.time.sin() * self.distance,
             0f32,
-            0f32, //self.time.cos() * self.distance,
+            self.time.cos() * self.distance,
         );
         let ray_direction = normalize(Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
         let ray_side = cross(ray_direction, normalize(Point::new(0f32, 1f32, 0f32)));
@@ -144,6 +148,10 @@ impl Game for RayTracer {
             half_width: HALF_WIDTH as f32,
             height: HEIGHT as f32,
             half_height: HALF_HEIGHT as f32,
+            time: self.time,
+            padding1: 0,
+            padding2: 0,
+            padding3: 0,
         };
 
         if self.render_on_gpu {
@@ -181,8 +189,8 @@ impl Game for RayTracer {
 
 impl RayTracer {
     fn render_cpu(&mut self, camera_data: &CameraData) {
-        self.screen_buffer = (0..HEIGHT * WIDTH)
-            .into_iter()
+        (0..HEIGHT * WIDTH)
+            .into_par_iter()
             .map(|index| {
                 let x = index % WIDTH;
                 let x = x as f32;
@@ -235,7 +243,7 @@ impl RayTracer {
                     [0, 0, 0, 255]
                 }
             })
-            .collect(); //.collect_into_vec(&mut self.screen_buffer);
+            .collect_into_vec(&mut self.screen_buffer);
 
         self.gpu_context.set_texture_data(
             "depth",
