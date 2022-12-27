@@ -39,19 +39,30 @@ impl<'a> Shader<'a> {
         let shader: &[u8] = unsafe {
             std::slice::from_raw_parts(shader_vec.as_ptr() as *const u8, shader_vec.len() * 4)
         };
-        let reflector = rspirv_reflect::Reflection::new_from_spirv(shader).unwrap();
-        let push_constant_info = match reflector.get_push_constant_range().unwrap() {
+        let reflector = rspirv_reflect::Reflection::new_from_spirv(shader)
+            .unwrap_or_else(|_| panic!("could not reflect shader: {}", shader_name));
+        let push_constant_info = match reflector.get_push_constant_range().unwrap_or_else(|_| {
+            panic!(
+                "could not get push constant range from shader: {}",
+                shader_name
+            )
+        }) {
             Some(p) => p,
             None => PushConstantInfo { offset: 0, size: 0 },
         };
-        let compute_group_sizes = reflector.get_compute_group_size().unwrap();
+        let compute_group_sizes = reflector.get_compute_group_size().unwrap_or_else(|| {
+            panic!(
+                "could not get compute group size from shader: {}",
+                shader_name
+            )
+        });
 
         let text = reflector.disassemble();
 
         let re = Regex::new(
             r"buffer [^\s\\]*_block|(([ui]*image3D|[ui]*image2D|[ui]*image1D) [a-z_A-Z]*)",
         )
-        .unwrap();
+        .expect("somehow couldnt compile regex");
         let bindings: Vec<String> = re
             .find_iter(&text)
             .map(|val| val.as_str().split(' ').collect::<Vec<&str>>()[1].to_string())

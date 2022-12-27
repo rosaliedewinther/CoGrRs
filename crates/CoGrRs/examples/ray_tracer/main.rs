@@ -1,5 +1,5 @@
 use crate::bvh::{cross, dot, BVHNode, Ray};
-use bvh::{normalize, Point, BVH};
+use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
 use gpu::wgpu::TextureFormat::Rgba8Uint;
 use gpu::Context;
@@ -17,11 +17,10 @@ mod bvh;
 pub struct RayTracer {
     pub gpu_context: Context,
     pub ui: MainGui,
-    pub bvh: BVH,
+    pub bvh: Bvh,
     pub time: f32,
     pub distance: f32,
     pub screen_buffer: Vec<[u8; 4]>,
-    pub frame_count: i32,
     pub render_on_gpu: bool,
 }
 
@@ -63,9 +62,8 @@ impl Game for RayTracer {
 
         let screen_buffer = vec![[0; 4]; (WIDTH * HEIGHT) as usize];
 
-        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/dragon.obj");
+        let mut bvh = Bvh::new("crates/CoGrRs/examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
-        println!("{}", bvh.get_bvh_statistics(2));
 
         let ui = MainGui::new(&gpu_context, window);
 
@@ -109,21 +107,12 @@ impl Game for RayTracer {
             time: 0f32,
             distance: 1f32,
             screen_buffer,
-            frame_count: 1,
             render_on_gpu: false,
         }
     }
 
     fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult {
         self.time += dt;
-        self.frame_count += 1;
-        if self.frame_count == 10 {
-            println!(
-                "average seconds per frame: {}",
-                self.time / self.frame_count as f32
-            );
-            //return RenderResult::Exit;
-        }
         self.distance += input.mouse_state.scroll_delta;
         let ray_origin = Point::new(
             self.time.sin() * self.distance,
@@ -215,13 +204,6 @@ impl RayTracer {
                 };
 
                 self.bvh.fast_intersect(&mut ray);
-
-                /*return [
-                    (ray.t) as u8, //(intensity * 255f32) as u8,
-                    (ray.t) as u8, //(intensity * 255f32) as u8,
-                    (ray.t) as u8, //(intensity * 255f32) as u8,
-                    255,
-                ];*/
 
                 if ray.t < 10000000f32 {
                     let normal = self.bvh.triangle_normal(ray.prim);

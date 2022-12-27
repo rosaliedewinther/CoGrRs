@@ -27,7 +27,7 @@ pub struct BVHNode {
 }
 #[repr(C, align(32))]
 #[derive(Pod, Zeroable, Copy, Clone)]
-pub struct AABB {
+pub struct Aabb {
     pub minx: f32,
     pub miny: f32,
     pub minz: f32,
@@ -49,7 +49,7 @@ pub struct Ray {
     pub _padding2: u32,
 }
 
-pub struct BVH {
+pub struct Bvh {
     pub vertices: Vec<Point>,
     pub triangles: Vec<[u32; 4]>,
     pub indices: Vec<u32>,
@@ -57,7 +57,7 @@ pub struct BVH {
     pub centroids: Vec<Point>,
 }
 
-impl Debug for AABB {
+impl Debug for Aabb {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!(
             "({} {} {} {} {} {})",
@@ -238,10 +238,6 @@ pub fn normalize(point: Point) -> Point {
     point / length(point)
 }
 
-pub fn distance(a: Point, b: Point) -> f32 {
-    length(a - b)
-}
-
 impl Debug for BVHNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!(
@@ -258,8 +254,8 @@ impl Debug for BVHNode {
     }
 }
 
-impl BVH {
-    pub fn construct(filename: &str) -> BVH {
+impl Bvh {
+    pub fn new(filename: &str) -> Bvh {
         println!("reading .obj file");
 
         let mut vertices = Vec::new();
@@ -319,7 +315,7 @@ impl BVH {
 
         let bvh_nodes = vec![BVHNode::zeroed(); triangles.len() * 2];
 
-        BVH {
+        Bvh {
             vertices,
             triangles,
             indices,
@@ -407,36 +403,12 @@ impl BVH {
 
         let mut new_node_index = 2;
 
-        self.subdivide(0, 0, &mut new_node_index, 0);
+        self.subdivide(0, 0, &mut new_node_index);
         println!("done building bvh");
 
         self.centroids = Vec::new();
         self.bvh_nodes.truncate(new_node_index as usize);
         self.bvh_nodes.shrink_to_fit();
-    }
-
-    fn print_tree(&self, index: u32, depth: u32) {
-        println!(
-            "{}{}: {} {} {} {} {} {} {} {}",
-            "\t".repeat(depth as usize),
-            index,
-            self.bvh_nodes[index as usize].maxx,
-            self.bvh_nodes[index as usize].maxy,
-            self.bvh_nodes[index as usize].maxz,
-            self.bvh_nodes[index as usize].minx,
-            self.bvh_nodes[index as usize].miny,
-            self.bvh_nodes[index as usize].minz,
-            self.bvh_nodes[index as usize].count,
-            self.bvh_nodes[index as usize].left_first,
-        );
-        if self.bvh_nodes[index as usize].count > 0 {
-            return;
-        }
-        self.print_tree(self.bvh_nodes[index as usize].left_first as u32, depth + 1);
-        self.print_tree(
-            (self.bvh_nodes[index as usize].left_first + 1) as u32,
-            depth + 1,
-        );
     }
 
     //loop invariants:
@@ -451,13 +423,7 @@ impl BVH {
     // 3 = 0.1857s
     // 4 = 0.187s
     // 5 = 0.1901s
-    fn subdivide(
-        &mut self,
-        current_bvh_index: usize,
-        start: u32,
-        pool_index: &mut u32,
-        depth: u32,
-    ) {
+    fn subdivide(&mut self, current_bvh_index: usize, start: u32, pool_index: &mut u32) {
         if self.bvh_nodes[current_bvh_index].count <= 3 {
             self.bvh_nodes[current_bvh_index].left_first = start as i32;
             return;
@@ -477,12 +443,12 @@ impl BVH {
         let bounds = self.calculate_bounds(pivot, right_count as u32, false);
         self.set_bound(index as usize + 1, &bounds);
 
-        self.subdivide(index as usize, start, pool_index, depth + 1);
-        self.subdivide(index as usize + 1, pivot, pool_index, depth + 1);
+        self.subdivide(index as usize, start, pool_index);
+        self.subdivide(index as usize + 1, pivot, pool_index);
         self.bvh_nodes[current_bvh_index].count = 0;
     }
 
-    fn set_bound(&mut self, bvh_index: usize, aabb: &AABB) {
+    fn set_bound(&mut self, bvh_index: usize, aabb: &Aabb) {
         self.bvh_nodes[bvh_index].maxx = aabb.maxx;
         self.bvh_nodes[bvh_index].maxy = aabb.maxy;
         self.bvh_nodes[bvh_index].maxz = aabb.maxz;
@@ -546,7 +512,6 @@ impl BVH {
         let mut i = start as i32;
 
         while i < end {
-            //println!("{} {}", i, end);
             if self.centroids[self.indices[i as usize] as usize].pos[axis] < pos {
                 i += 1;
             } else {
@@ -559,7 +524,7 @@ impl BVH {
     }
 
     // return min and max point
-    fn calculate_bounds(&self, first: u32, amount: u32, centroids: bool) -> AABB {
+    fn calculate_bounds(&self, first: u32, amount: u32, centroids: bool) -> Aabb {
         let mut max_point = Point {
             pos: [-100000000f32, -100000000f32, -100000000f32, 0f32],
         };
@@ -581,7 +546,7 @@ impl BVH {
                 }
             }
         }
-        AABB {
+        Aabb {
             maxx: max_point.pos[0],
             maxy: max_point.pos[1],
             maxz: max_point.pos[2],
@@ -602,49 +567,20 @@ impl BVH {
         let c = &self.vertices[self.triangles[triangle_index as usize][2] as usize];
         let a_to_b = *b - *a;
         let a_to_c = *c - *a;
-
-        // Begin calculating determinant - also used to calculate u parameter
-        // u_vec lies in view plane
-        // length of a_to_c in view_plane = |u_vec| = |a_to_c|*sin(a_to_c, dir)
         let u_vec = cross(ray.d, a_to_c);
-
-        // If determinant is near zero, ray lies in plane of triangle
-        // The determinant corresponds to the parallelepiped volume:
-        // det = 0 => [dir, a_to_b, a_to_c] not linearly independant
         let det = dot(a_to_b, u_vec);
-
-        // Only testing positive bound, thus enabling backface culling
-        // If backface culling is not desired write:
-        // det < 0.0001 && det > -0.0001
-        if det < f32::EPSILON && det > -f32::EPSILON {
-            //return;
-        }
-
         let inv_det = 1.0 / det;
-
-        // Vector from point a to ray origin
         let a_to_origin = ray.o - *a;
-
-        // Calculate u parameter
         let u = dot(a_to_origin, u_vec) * inv_det;
-
-        // Test bounds: u < 0 || u > 1 => outside of triangle
         if !(0f32..=1f32).contains(&u) {
             return;
         }
-
-        // Prepare to test v parameter
         let v_vec = cross(a_to_origin, a_to_b);
-
-        // Calculate v parameter and test bound
         let v = dot(ray.d, v_vec) * inv_det;
-        // The intersection lies outside of the triangle
         if v < 0.0 || u + v > 1.0 {
             return;
         }
-
         let dist = dot(a_to_c, v_vec) * inv_det;
-
         if dist > 0.0000001 && dist < ray.t {
             ray.t = dist;
             ray.prim = triangle_index;
@@ -688,18 +624,12 @@ impl BVH {
         let mut stack = [(0usize, 0f32); 32];
         let mut node_index = 0;
         let mut stack_ptr = 0;
-
-        let mut loop_counter = 0;
-
         'outer: loop {
-            loop_counter += 1;
-            //println!("{:?}", self.bvh_nodes[node_index]);
-            //println!("{} {} {:?}", node_index, stack_ptr, stack);
             if self.bvh_nodes[node_index].count > 0 {
                 for i in 0..self.bvh_nodes[node_index].count {
                     self.intersects_triangle(
                         ray,
-                        (self.indices[(self.bvh_nodes[node_index].left_first + i) as usize]),
+                        self.indices[(self.bvh_nodes[node_index].left_first + i) as usize],
                     )
                 }
                 if stack_ptr == 0 {
@@ -737,17 +667,14 @@ impl BVH {
                         stack_ptr -= 1;
                         (node_index, t) = stack[stack_ptr];
                     }
-                    //println!("stack_ptr -= 1");
                 }
             } else {
                 node_index = child1 as usize;
                 if dist2 != f32::MAX {
                     stack[stack_ptr] = (child2 as usize, dist2);
                     stack_ptr += 1;
-                    //println!("stack_ptr += 1");
                 }
             }
         }
-        //ray.t = loop_counter as f32;
     }
 }
