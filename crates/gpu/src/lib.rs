@@ -146,8 +146,10 @@ impl Context {
                 .expect("can't get new surface texture"),
         );
 
-        let mut texture_view_config = wgpu::TextureViewDescriptor::default();
-        texture_view_config.format = Some(self.config.format);
+        let texture_view_config = wgpu::TextureViewDescriptor {
+            format: Some(self.config.format),
+            ..Default::default()
+        };
 
         self.surface_texture_view = Some(
             self.surface_texture
@@ -160,7 +162,7 @@ impl Context {
         if self.to_screen_pipeline.is_none() {
             self.to_screen_pipeline = Some(ToScreenPipeline::new(
                 &self.device,
-                &self.get_raw_texture(&self.to_screen_texture_name),
+                self.get_raw_texture(&self.to_screen_texture_name),
                 self.config.format,
             ));
         }

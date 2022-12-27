@@ -56,7 +56,8 @@ impl ToScreenPipeline {
                 bind_group_layouts: &[bindgroup_layout],
                 push_constant_ranges: &[],
             });
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
@@ -94,8 +95,7 @@ impl ToScreenPipeline {
                 alpha_to_coverage_enabled: false, // 4.
             },
             multiview: None, // 5.
-        });
-        render_pipeline
+        })
     }
 
     fn init_bindgroup(

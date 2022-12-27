@@ -1,15 +1,12 @@
+use bytemuck::{Pod, Zeroable};
 use core::panic;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::{
-    cmp::{max, min},
-    fmt::format,
+    cmp::max,
     fs::File,
     io::{BufRead, BufReader},
     ops::{Add, Div, Mul, Sub},
 };
-
-use bytemuck::{Pod, Zeroable};
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -272,7 +269,7 @@ impl BVH {
         let reader = BufReader::new(file);
         for line in reader.lines() {
             let line = line.unwrap();
-            let splits: Vec<&str> = line.split(" ").collect();
+            let splits: Vec<&str> = line.split(' ').collect();
             if splits[0] == "v" {
                 let p1 = splits[1].parse::<f32>().unwrap();
                 let p2 = splits[2].parse::<f32>().unwrap();
@@ -284,19 +281,19 @@ impl BVH {
             if splits[0] == "f" {
                 match splits.len() {
                     4 => {
-                        let p1 = splits[1].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                        let p2 = splits[2].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                        let p3 = splits[3].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p1 = splits[1].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p2 = splits[2].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p3 = splits[3].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
                         triangles.push([p1, p2, p3, 0]);
                     }
                     5 => {
-                        let p1 = splits[1].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                        let p2 = splits[2].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                        let p3 = splits[4].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p1 = splits[1].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p2 = splits[2].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p3 = splits[4].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
                         triangles.push([p1, p2, p3, 0]);
-                        let p1 = splits[2].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                        let p2 = splits[3].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
-                        let p3 = splits[4].split("/").next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p1 = splits[2].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p2 = splits[3].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
+                        let p3 = splits[4].split('/').next().unwrap().parse::<u32>().unwrap() - 1;
                         triangles.push([p1, p2, p3, 0]);
                     }
                     _ => panic!("unknown model format"),
@@ -576,7 +573,7 @@ impl BVH {
                 max_point = Point::max(max_point, vertex);
                 min_point = Point::min(min_point, vertex);
             } else {
-                for j in 0..3 as usize {
+                for j in 0..3_usize {
                     let vertex =
                         self.vertices[self.triangles[self.indices[i] as usize][j] as usize];
                     max_point = Point::max(max_point, vertex);
@@ -632,7 +629,7 @@ impl BVH {
         let u = dot(a_to_origin, u_vec) * inv_det;
 
         // Test bounds: u < 0 || u > 1 => outside of triangle
-        if u < 0f32 || u > 1f32 {
+        if !(0f32..=1f32).contains(&u) {
             return;
         }
 
@@ -656,20 +653,20 @@ impl BVH {
     // returns nea/far
     pub fn intersect_aabb(&self, ray: &mut Ray, bvh_node: u32) -> f32 {
         let bvh_node = &self.bvh_nodes[bvh_node as usize];
-        let vMax = Point {
+        let v_max = Point {
             pos: [bvh_node.maxx, bvh_node.maxy, bvh_node.maxz, 0f32],
         };
-        let vMin = Point {
+        let v_min = Point {
             pos: [bvh_node.minx, bvh_node.miny, bvh_node.minz, 0f32],
         };
-        let tMin = (vMin - ray.o) * ray.d_r;
-        let tMax = (vMax - ray.o) * ray.d_r;
-        let t1 = Point::min(tMin, tMax);
-        let t2 = Point::max(tMin, tMax);
-        let tNear = f32::max(f32::max(t1.pos[0], t1.pos[1]), t1.pos[2]);
-        let tFar = f32::min(f32::min(t2.pos[0], t2.pos[1]), t2.pos[2]);
-        if tFar >= tNear && tNear < ray.t && tFar > 0f32 {
-            tNear
+        let t_min = (v_min - ray.o) * ray.d_r;
+        let t_max = (v_max - ray.o) * ray.d_r;
+        let t1 = Point::min(t_min, t_max);
+        let t2 = Point::max(t_min, t_max);
+        let t_near = f32::max(f32::max(t1.pos[0], t1.pos[1]), t1.pos[2]);
+        let t_far = f32::min(f32::min(t2.pos[0], t2.pos[1]), t2.pos[2]);
+        if t_far >= t_near && t_near < ray.t && t_far > 0f32 {
+            t_near
         } else {
             f32::MAX
         }
@@ -702,7 +699,7 @@ impl BVH {
                 for i in 0..self.bvh_nodes[node_index].count {
                     self.intersects_triangle(
                         ray,
-                        (self.indices[(self.bvh_nodes[node_index].left_first + i) as usize]) as u32,
+                        (self.indices[(self.bvh_nodes[node_index].left_first + i) as usize]),
                     )
                 }
                 if stack_ptr == 0 {

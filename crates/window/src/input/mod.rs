@@ -33,10 +33,10 @@ impl Input {
     }
     pub fn update_cursor_moved(&mut self, pos: &PhysicalPosition<f32>) {
         self.mouse_state.mouse_delta = [
-            (pos.x as f32 - self.mouse_state.mouse_location[0]) * self.sensitivity_modifier,
-            (pos.y as f32 - self.mouse_state.mouse_location[1]) * self.sensitivity_modifier,
+            (pos.x - self.mouse_state.mouse_location[0]) * self.sensitivity_modifier,
+            (pos.y - self.mouse_state.mouse_location[1]) * self.sensitivity_modifier,
         ];
-        self.mouse_state.mouse_location = [pos.x as f32, pos.y as f32];
+        self.mouse_state.mouse_location = [pos.x, pos.y];
     }
     pub fn update_cursor_entered(&mut self) {
         self.cursor_in_screen = true;
@@ -61,8 +61,8 @@ impl Input {
     pub fn update_mouse_wheel(&mut self, delta: &MouseScrollDelta) {
         match delta {
             MouseScrollDelta::LineDelta(_, scrolled) => {
-                self.mouse_state.scroll_delta = *scrolled as f32;
-                self.mouse_state.scroll_location += *scrolled as f32;
+                self.mouse_state.scroll_delta = *scrolled;
+                self.mouse_state.scroll_location += *scrolled;
             }
             MouseScrollDelta::PixelDelta(_) => {}
         }

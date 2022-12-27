@@ -162,7 +162,7 @@ impl MainGui {
             depth_stencil_attachment: None,
         });
 
-        self.platform.prepare_render(&ui, window);
+        self.platform.prepare_render(ui, window);
         self.renderer
             .render(
                 imgui::Context::render(&mut self.imgui),
@@ -223,10 +223,8 @@ impl MainGui {
             let selected = &self
                 .combos
                 .get(combo_name)
-                .expect(&format!(
-                    "Somehow combobox {} did not get added ",
-                    combo_name
-                ))
+                .unwrap_or_else(|| panic!("Somehow combobox {} did not get added ",
+                    combo_name))
                 .1[0];
             selected.to_string()
         }
@@ -281,7 +279,7 @@ impl MainGui {
                     metric_data.current_index as i32,
                 );
                 // make sure to wrap around when needed
-                if metric_data.current_index == metric_data.values.len() as usize {
+                if metric_data.current_index == metric_data.values.len() {
                     metric_data.current_index = 0;
                 }
             }

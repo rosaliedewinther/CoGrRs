@@ -1,5 +1,4 @@
-use std::cell::UnsafeCell;
-
+use crate::bvh::{cross, dot, BVHNode, Ray};
 use bvh::{normalize, Point, BVH};
 use bytemuck::{Pod, Zeroable};
 use gpu::wgpu::TextureFormat::Rgba8Uint;
@@ -7,15 +6,11 @@ use gpu::Context;
 use gpu::Execution::PerPixel2D;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use ui::MainGui;
-use window::winit::event::VirtualKeyCode::Space;
 use window::{
     input::{button::ButtonState, Input},
     main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
     winit::window::Window,
 };
-
-use crate::bvh::{cross, dot, BVHNode, Ray};
-use gpu::Execution::N1D;
 
 mod bvh;
 
@@ -68,7 +63,7 @@ impl Game for RayTracer {
 
         let screen_buffer = vec![[0; 4]; (WIDTH * HEIGHT) as usize];
 
-        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/lucy.obj");
+        let mut bvh = BVH::construct("crates/CoGrRs/examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
         println!("{}", bvh.get_bvh_statistics(2));
 

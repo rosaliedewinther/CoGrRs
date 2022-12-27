@@ -93,12 +93,11 @@ impl ComputePipeline {
 
         let mut push_constant_range_vec = Vec::new();
 
-        match push_constant_range {
-            Some(range) => push_constant_range_vec.push(wgpu::PushConstantRange {
+        if let Some(range) = push_constant_range {
+            push_constant_range_vec.push(wgpu::PushConstantRange {
                 stages: wgpu::ShaderStages::COMPUTE,
                 range,
-            }),
-            None => (),
+            })
         };
 
         let pipeline_layout =
