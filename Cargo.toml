@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/CoGrRs",
+    "crates/cogrrs",
     "crates/gpu",
     "crates/ui"
 ]

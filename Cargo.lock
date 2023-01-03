@@ -3,17 +3,6 @@
 version = 3
 
 [[package]]
-name = "CoGrRs"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "gpu",
- "rayon",
- "ui",
- "window",
-]
-
-[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -225,6 +214,17 @@ checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
 dependencies = [
  "termcolor",
  "unicode-width",
+]
+
+[[package]]
+name = "cogrrs"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "gpu",
+ "rayon",
+ "ui",
+ "window",
 ]
 
 [[package]]
