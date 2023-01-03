@@ -256,8 +256,6 @@ impl Debug for BVHNode {
 
 impl Bvh {
     pub fn new(filename: &str) -> Bvh {
-        println!("reading .obj file");
-
         let mut vertices = Vec::new();
         let mut triangles = Vec::new();
 
@@ -296,16 +294,6 @@ impl Bvh {
                 }
             }
         }
-
-        println!("len v: {}", vertices.len());
-        println!(
-            "max f: {}",
-            triangles
-                .iter()
-                .map(|val| max(max(max(val[0], val[1]), val[2]), val[3]))
-                .max()
-                .unwrap()
-        );
 
         let indices: Vec<u32> = triangles
             .iter()
@@ -404,7 +392,6 @@ impl Bvh {
         let mut new_node_index = 2;
 
         self.subdivide(0, 0, &mut new_node_index);
-        println!("done building bvh");
 
         self.centroids = Vec::new();
         self.bvh_nodes.truncate(new_node_index as usize);

@@ -105,9 +105,9 @@ impl Game for RayTracer {
             ui,
             bvh,
             time: 0f32,
-            distance: 1f32,
+            distance: -1f32,
             screen_buffer,
-            render_on_gpu: false,
+            render_on_gpu: true,
         }
     }
 
@@ -150,7 +150,7 @@ impl Game for RayTracer {
 
         self.ui.text("fps", &(1f32 / dt).to_string());
 
-        self.render_on_gpu = self.ui.combobox("gpu_rendering", vec!["CPU", "GPU"]) == "GPU";
+        self.render_on_gpu = self.ui.combobox("gpu_rendering", vec!["GPU", "CPU"]) == "GPU";
 
         self.ui.draw(
             &self.gpu_context,
