@@ -50,8 +50,7 @@ pub struct Ray {
 }
 
 pub struct Bvh {
-    pub vertices: Vec<Point>,
-    pub triangles: Vec<[u32; 4]>,
+    pub triangles: Vec<[Point; 4]>,
     pub indices: Vec<u32>,
     pub bvh_nodes: Vec<BVHNode>,
     pub centroids: Vec<Point>,
@@ -68,9 +67,7 @@ impl Debug for Aabb {
 
 impl Point {
     pub fn new(x: f32, y: f32, z: f32) -> Point {
-        Point {
-            pos: [x, y, z, 0f32],
-        }
+        Point { pos: [x, y, z, 0f32] }
     }
 }
 
@@ -79,12 +76,7 @@ impl Add for Point {
 
     fn add(self, other: Point) -> Point {
         Point {
-            pos: [
-                self.pos[0] + other.pos[0],
-                self.pos[1] + other.pos[1],
-                self.pos[2] + other.pos[2],
-                0f32,
-            ],
+            pos: [self.pos[0] + other.pos[0], self.pos[1] + other.pos[1], self.pos[2] + other.pos[2], 0f32],
         }
     }
 }
@@ -94,12 +86,7 @@ impl Add<f32> for Point {
 
     fn add(self, other: f32) -> Point {
         Point {
-            pos: [
-                self.pos[0] + other,
-                self.pos[1] + other,
-                self.pos[2] + other,
-                0f32,
-            ],
+            pos: [self.pos[0] + other, self.pos[1] + other, self.pos[2] + other, 0f32],
         }
     }
 }
@@ -109,12 +96,7 @@ impl Sub for Point {
 
     fn sub(self, other: Point) -> Point {
         Point {
-            pos: [
-                self.pos[0] - other.pos[0],
-                self.pos[1] - other.pos[1],
-                self.pos[2] - other.pos[2],
-                0f32,
-            ],
+            pos: [self.pos[0] - other.pos[0], self.pos[1] - other.pos[1], self.pos[2] - other.pos[2], 0f32],
         }
     }
 }
@@ -124,12 +106,7 @@ impl Sub<f32> for Point {
 
     fn sub(self, other: f32) -> Point {
         Point {
-            pos: [
-                self.pos[0] - other,
-                self.pos[1] - other,
-                self.pos[2] - other,
-                0f32,
-            ],
+            pos: [self.pos[0] - other, self.pos[1] - other, self.pos[2] - other, 0f32],
         }
     }
 }
@@ -139,12 +116,7 @@ impl Mul<f32> for Point {
 
     fn mul(self, scalar: f32) -> Point {
         Point {
-            pos: [
-                self.pos[0] * scalar,
-                self.pos[1] * scalar,
-                self.pos[2] * scalar,
-                0f32,
-            ],
+            pos: [self.pos[0] * scalar, self.pos[1] * scalar, self.pos[2] * scalar, 0f32],
         }
     }
 }
@@ -154,12 +126,7 @@ impl Mul<Point> for Point {
 
     fn mul(self, rhs: Point) -> Point {
         Point {
-            pos: [
-                self.pos[0] * rhs.pos[0],
-                self.pos[1] * rhs.pos[1],
-                self.pos[2] * rhs.pos[2],
-                0f32,
-            ],
+            pos: [self.pos[0] * rhs.pos[0], self.pos[1] * rhs.pos[1], self.pos[2] * rhs.pos[2], 0f32],
         }
     }
 }
@@ -169,12 +136,7 @@ impl Div<f32> for Point {
 
     fn div(self, scalar: f32) -> Point {
         Point {
-            pos: [
-                self.pos[0] / scalar,
-                self.pos[1] / scalar,
-                self.pos[2] / scalar,
-                0f32,
-            ],
+            pos: [self.pos[0] / scalar, self.pos[1] / scalar, self.pos[2] / scalar, 0f32],
         }
     }
 }
@@ -183,12 +145,7 @@ impl Div<Point> for f32 {
 
     fn div(self, point: Point) -> Point {
         Point {
-            pos: [
-                self / point.pos[0],
-                self / point.pos[1],
-                self / point.pos[2],
-                0f32,
-            ],
+            pos: [self / point.pos[0], self / point.pos[1], self / point.pos[2], 0f32],
         }
     }
 }
@@ -242,14 +199,7 @@ impl Debug for BVHNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!(
             "{} {} {} {} {} {} {} {}",
-            self.count,
-            self.left_first,
-            self.maxx,
-            self.maxy,
-            self.maxz,
-            self.minx,
-            self.miny,
-            self.minz
+            self.count, self.left_first, self.maxx, self.maxy, self.maxz, self.minx, self.miny, self.minz
         ))
     }
 }
@@ -268,9 +218,7 @@ impl Bvh {
                 let p1 = splits[1].parse::<f32>().unwrap();
                 let p2 = splits[2].parse::<f32>().unwrap();
                 let p3 = splits[3].parse::<f32>().unwrap();
-                vertices.push(Point {
-                    pos: [p1, p2, p3, 0f32],
-                });
+                vertices.push(Point { pos: [p1, p2, p3, 0f32] });
             }
             if splits[0] == "f" {
                 match splits.len() {
@@ -295,16 +243,16 @@ impl Bvh {
             }
         }
 
-        let indices: Vec<u32> = triangles
+        let indices: Vec<u32> = triangles.iter().enumerate().map(|(i, _)| i as u32).collect();
+
+        let triangles: Vec<[Point; 4]> = triangles
             .iter()
-            .enumerate()
-            .map(|(i, _)| i as u32)
+            .map(|tri| [vertices[tri[0] as usize], vertices[tri[1] as usize], vertices[tri[2] as usize], Point::zeroed()])
             .collect();
 
         let bvh_nodes = vec![BVHNode::zeroed(); triangles.len() * 2];
 
         Bvh {
-            vertices,
             triangles,
             indices,
             bvh_nodes,
@@ -314,39 +262,29 @@ impl Bvh {
 
     pub fn get_bvh_statistics(&self, node_width: u32) -> String {
         format!(
-            "max depth: {}\ntotal_area: {}\ntotal_internal_nodes: {}\ntriangle_count: {}\nvertex_count: {}",
+            "max depth: {}\ntotal_area: {}\ntotal_internal_nodes: {}\ntriangle_count: {}",
             self.get_max_depth(0, 0, node_width),
             self.get_total_area(0, node_width),
             self.total_internal_nodes(0, node_width),
             self.triangles.len(),
-            self.vertices.len()
         )
     }
 
     pub fn get_max_depth(&self, node_id: u32, depth: u32, width: u32) -> u32 {
-        if self.bvh_nodes[node_id as usize].count > 0
-            || self.bvh_nodes[node_id as usize].left_first == 0
-        {
+        if self.bvh_nodes[node_id as usize].count > 0 || self.bvh_nodes[node_id as usize].left_first == 0 {
             return depth;
         }
         let mut global_max = 0;
         let left = self.bvh_nodes[node_id as usize].left_first;
         for i in 0..width {
-            global_max = max(
-                global_max,
-                self.get_max_depth(left as u32 + i, depth + 1, width),
-            );
+            global_max = max(global_max, self.get_max_depth(left as u32 + i, depth + 1, width));
         }
         global_max
     }
     pub fn get_total_area(&self, node_id: u32, width: u32) -> f64 {
         let node = &self.bvh_nodes[node_id as usize];
-        let mut area = Self::get_area(
-            node.maxx, node.maxy, node.maxz, node.minx, node.miny, node.minz,
-        ) as f64;
-        if self.bvh_nodes[node_id as usize].count > 0
-            || self.bvh_nodes[node_id as usize].left_first == 0
-        {
+        let mut area = Self::get_area(node.maxx, node.maxy, node.maxz, node.minx, node.miny, node.minz) as f64;
+        if self.bvh_nodes[node_id as usize].count > 0 || self.bvh_nodes[node_id as usize].left_first == 0 {
             return area;
         }
         let left = self.bvh_nodes[node_id as usize].left_first;
@@ -357,9 +295,7 @@ impl Bvh {
         area
     }
     pub fn total_internal_nodes(&self, node_id: u32, width: u32) -> u32 {
-        if self.bvh_nodes[node_id as usize].count > 0
-            || self.bvh_nodes[node_id as usize].left_first == 0
-        {
+        if self.bvh_nodes[node_id as usize].count > 0 || self.bvh_nodes[node_id as usize].left_first == 0 {
             return 0;
         }
         let left = self.bvh_nodes[node_id as usize].left_first;
@@ -372,16 +308,7 @@ impl Bvh {
     }
 
     pub fn build_bvh(&mut self) {
-        self.centroids = self
-            .triangles
-            .iter()
-            .map(|t| {
-                (self.vertices[t[0] as usize]
-                    + self.vertices[t[1] as usize]
-                    + self.vertices[t[2] as usize])
-                    / 3f32
-            })
-            .collect();
+        self.centroids = self.triangles.iter().map(|t| (t[0] + t[1] + t[2]) / 3f32).collect();
 
         self.bvh_nodes[0].left_first = 0;
         self.bvh_nodes[0].count = self.triangles.len() as i32;
@@ -469,10 +396,8 @@ impl Bvh {
                 let bb1 = self.calculate_bounds(start, bb1_count, false);
                 let bb2 = self.calculate_bounds(pivot, bb2_count, false);
 
-                let half_area1 =
-                    Self::get_area(bb1.maxx, bb1.maxy, bb1.maxz, bb1.minx, bb1.miny, bb1.minz);
-                let half_area2 =
-                    Self::get_area(bb2.maxx, bb2.maxy, bb2.maxz, bb2.minx, bb2.miny, bb2.minz);
+                let half_area1 = Self::get_area(bb1.maxx, bb1.maxy, bb1.maxz, bb1.minx, bb1.miny, bb1.minz);
+                let half_area2 = Self::get_area(bb2.maxx, bb2.maxy, bb2.maxz, bb2.minx, bb2.miny, bb2.minz);
 
                 let cost = half_area1 * bb1_count as f32 + half_area2 * bb2_count as f32;
                 if cost < optimal_cost {
@@ -488,10 +413,7 @@ impl Bvh {
     }
 
     fn get_area(maxx: f32, maxy: f32, maxz: f32, minx: f32, miny: f32, minz: f32) -> f32 {
-        ((maxx - minx) * (maxy - miny)
-            + (maxx - minx) * (maxz - minz)
-            + (maxy - miny) * (maxz - minz))
-            * 2f32
+        ((maxx - minx) * (maxy - miny) + (maxx - minx) * (maxz - minz) + (maxy - miny) * (maxz - minz)) * 2f32
     }
 
     fn partition_shuffle(&mut self, axis: usize, pos: f32, start: u32, count: u32) -> u32 {
@@ -526,8 +448,7 @@ impl Bvh {
                 min_point = Point::min(min_point, vertex);
             } else {
                 for j in 0..3_usize {
-                    let vertex =
-                        self.vertices[self.triangles[self.indices[i] as usize][j] as usize];
+                    let vertex = self.triangles[self.indices[i] as usize][j];
                     max_point = Point::max(max_point, vertex);
                     min_point = Point::min(min_point, vertex);
                 }
@@ -549,9 +470,9 @@ impl Bvh {
         a + (b - a) * p
     }
     pub fn intersects_triangle(&self, ray: &mut Ray, triangle_index: u32) {
-        let a = &self.vertices[self.triangles[triangle_index as usize][0] as usize];
-        let b = &self.vertices[self.triangles[triangle_index as usize][1] as usize];
-        let c = &self.vertices[self.triangles[triangle_index as usize][2] as usize];
+        let a = &self.triangles[triangle_index as usize][0];
+        let b = &self.triangles[triangle_index as usize][1];
+        let c = &self.triangles[triangle_index as usize][2];
         let a_to_b = *b - *a;
         let a_to_c = *c - *a;
         let u_vec = cross(ray.d, a_to_c);
@@ -559,12 +480,12 @@ impl Bvh {
         let inv_det = 1.0 / det;
         let a_to_origin = ray.o - *a;
         let u = dot(a_to_origin, u_vec) * inv_det;
-        if !(0f32..=1f32).contains(&u) {
+        if (u > 1f32) | (u < 0f32) {
             return;
         }
         let v_vec = cross(a_to_origin, a_to_b);
         let v = dot(ray.d, v_vec) * inv_det;
-        if v < 0.0 || u + v > 1.0 {
+        if (v < 0.0) | (u + v > 1.0) {
             return;
         }
         let dist = dot(a_to_c, v_vec) * inv_det;
@@ -603,8 +524,8 @@ impl Bvh {
 
     pub fn triangle_normal(&self, triangle_index: u32) -> Point {
         let triangle = self.triangles[triangle_index as usize];
-        let p1 = self.vertices[triangle[1] as usize] - self.vertices[triangle[0] as usize];
-        let p2 = self.vertices[triangle[1] as usize] - self.vertices[triangle[2] as usize];
+        let p1 = triangle[1] - triangle[0];
+        let p2 = triangle[1] - triangle[2];
         normalize(cross(normalize(p1), normalize(p2)))
     }
     pub fn fast_intersect(&self, ray: &mut Ray) {
@@ -614,10 +535,7 @@ impl Bvh {
         'outer: loop {
             if self.bvh_nodes[node_index].count > 0 {
                 for i in 0..self.bvh_nodes[node_index].count {
-                    self.intersects_triangle(
-                        ray,
-                        self.indices[(self.bvh_nodes[node_index].left_first + i) as usize],
-                    )
+                    self.intersects_triangle(ray, self.indices[(self.bvh_nodes[node_index].left_first + i) as usize])
                 }
                 if stack_ptr == 0 {
                     break;

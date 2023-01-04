@@ -21,6 +21,7 @@ pub struct RayTracer {
     pub time: f32,
     pub distance: f32,
     pub screen_buffer: Vec<[u8; 4]>,
+    pub frame_number: u32,
     pub render_on_gpu: bool,
 }
 
@@ -60,23 +61,16 @@ impl Game for RayTracer {
         let ui = MainGui::new(&gpu_context, window);
 
         gpu_context.texture("depth", (WIDTH, HEIGHT, 1), Rgba8Uint);
-        gpu_context.buffer::<[f32; 4]>("vertices_block", bvh.vertices.len() as u32);
-        gpu_context.buffer::<[u32; 4]>("triangles_block", bvh.triangles.len() as u32);
+        gpu_context.buffer::<[Point; 4]>("triangles_block", bvh.triangles.len() as u32);
         gpu_context.buffer::<u32>("indices_block", bvh.indices.len() as u32);
         gpu_context.buffer::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.len() as u32);
         gpu_context.pipeline("draw", [], PerPixel2D);
         gpu_context.pipeline("trace", [], PerPixel2D);
 
         gpu_context.set_buffer_data(
-            "vertices_block",
-            bvh.vertices.as_slice(),
-            std::mem::size_of::<[f32; 4]>() * bvh.vertices.len(),
-            0,
-        );
-        gpu_context.set_buffer_data(
             "triangles_block",
             bvh.triangles.as_slice(),
-            std::mem::size_of::<[f32; 4]>() * bvh.triangles.len(),
+            std::mem::size_of::<[Point; 4]>() * bvh.triangles.len(),
             0,
         );
         gpu_context.set_buffer_data("indices_block", bvh.indices.as_slice(), std::mem::size_of::<u32>() * bvh.indices.len(), 0);
@@ -94,14 +88,25 @@ impl Game for RayTracer {
             time: 0f32,
             distance: -1f32,
             screen_buffer,
+            frame_number: 0,
             render_on_gpu: true,
         }
     }
 
     fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult {
         self.time += dt;
+
+        self.frame_number += 1;
+        if self.frame_number == 1000 {
+            println!("time: {}", self.time)
+        }
+
         self.distance += input.mouse_state.scroll_delta;
-        let ray_origin = Point::new(self.time.sin() * self.distance, 0f32, self.time.cos() * self.distance);
+        let ray_origin = Point::new(
+            (self.frame_number as f32 * 0.1).sin() * self.distance,
+            0f32,
+            (self.frame_number as f32 * 0.1).cos() * self.distance,
+        );
         let ray_direction = normalize(Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
         let ray_side = cross(ray_direction, normalize(Point::new(0f32, 1f32, 0f32)));
         let ray_up = cross(ray_direction, ray_side);
@@ -131,7 +136,7 @@ impl Game for RayTracer {
 
         self.gpu_context.image_buffer_to_screen(&mut encoder);
 
-        self.ui.text("fps", &(1f32 / dt).to_string());
+        self.ui.text("fps", &(1f32 / (self.time / self.frame_number as f32)).to_string());
 
         self.render_on_gpu = self.ui.combobox("gpu_rendering", vec!["GPU", "CPU"]) == "GPU";
 

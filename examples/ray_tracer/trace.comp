@@ -17,11 +17,17 @@ struct StackNode{
     float dist;
 };
 
+struct Triangle{
+    vec4 p1;
+    vec4 p2;
+    vec4 p3;
+    vec4 p4;
+};
+
 layout(rgba8, binding=0) uniform image2D to_draw_texture;
-layout(std430, binding=1) buffer vertices_block { vec4 vertices[]; };
-layout(std430, binding=2) buffer triangles_block { uvec4 triangles[]; };
-layout(std430, binding=3) buffer indices_block { uint indices[]; };
-layout(std430, binding=4) buffer bvh_nodes_block { BVHNode bvh_nodes[]; };
+layout(std430, binding=1) buffer triangles_block { Triangle triangles[]; };
+layout(std430, binding=2) buffer indices_block { uint indices[]; };
+layout(std430, binding=3) buffer bvh_nodes_block { BVHNode bvh_nodes[]; };
 layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 layout(push_constant) uniform constants
@@ -59,9 +65,9 @@ void intersect_ray_triangle(
     inout uint prim_id,
     in uint triangle_id
 ){
-    vec4 p1 = vertices[triangles[triangle_id].x];
-    vec4 p2 = vertices[triangles[triangle_id].y];
-    vec4 p3 = vertices[triangles[triangle_id].z];
+    vec4 p1 = triangles[triangle_id].p1;
+    vec4 p2 = triangles[triangle_id].p2;
+    vec4 p3 = triangles[triangle_id].p3;
     vec4 p1_to_p2 = p2 - p1;
     vec4 p1_to_p3 = p3 - p1;
     vec4 uvec = my_cross(ray_dir, p1_to_p3);
@@ -198,9 +204,9 @@ void traverse(
 }
 
 vec4 triangle_normal(uint triangle_id){
-    vec4 p1 = vertices[triangles[triangle_id].x];
-    vec4 p2 = vertices[triangles[triangle_id].y];
-    vec4 p3 = vertices[triangles[triangle_id].z];
+    vec4 p1 = triangles[triangle_id].p1;
+    vec4 p2 = triangles[triangle_id].p2;
+    vec4 p3 = triangles[triangle_id].p3;
     p1 = p2 - p1;
     p2 = p2 - p3;
     return normalize(my_cross(normalize(p1), normalize(p2)));
