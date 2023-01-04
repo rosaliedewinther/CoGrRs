@@ -22,22 +22,14 @@ struct GpuData {
 
 impl Game for HelloSine {
     fn on_init(window: &Window) -> Self {
-        let mut gpu_context = Context::new(
-            window,
-            "to_draw_texture",
-            "crates/CoGrRs/examples/hello_sine/",
-        );
+        let mut gpu_context = Context::new(window, "to_draw_texture", "examples/hello_sine/");
 
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
         gpu_context.pipeline("sine", [], PerPixel2D);
 
         let ui = MainGui::new(&gpu_context, window);
 
-        HelloSine {
-            gpu_context,
-            ui,
-            time: 0f32,
-        }
+        HelloSine { gpu_context, ui, time: 0f32 }
     }
 
     fn on_render(&mut self, _input: &mut Input, dt: f32, _window: &Window) -> RenderResult {
@@ -45,8 +37,7 @@ impl Game for HelloSine {
 
         self.time += dt;
         let gpu_data = GpuData { time: self.time };
-        self.gpu_context
-            .dispatch_pipeline("sine", &mut encoder, &gpu_data);
+        self.gpu_context.dispatch_pipeline("sine", &mut encoder, &gpu_data);
         self.gpu_context.image_buffer_to_screen(&mut encoder);
 
         self.gpu_context.execute_encoder(encoder);

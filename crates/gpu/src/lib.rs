@@ -16,27 +16,16 @@ use wgpu::TextureFormat::Rgba8Unorm;
 
 use log::info;
 
-use wgpu::{
-    util::DeviceExt, CommandEncoder, Extent3d, ImageCopyBuffer, ImageCopyTexture, ImageDataLayout,
-    TextureViewDimension,
-};
+use wgpu::{util::DeviceExt, CommandEncoder, Extent3d, ImageCopyBuffer, ImageCopyTexture, ImageDataLayout, TextureViewDimension};
 
 use wgpu::IndexFormat::Uint16;
 
-use crate::{
-    buffer::init_storage_buffer, compute_pipeline::TextureOrBuffer, texture::init_texture,
-    to_screen_pipeline::ToScreenPipeline,
-};
+use crate::{buffer::init_storage_buffer, compute_pipeline::TextureOrBuffer, texture::init_texture, to_screen_pipeline::ToScreenPipeline};
 
 #[derive(Debug)]
 enum GpuResource {
     Buffer(wgpu::Buffer),
-    Texture(
-        wgpu::TextureView,
-        wgpu::TextureFormat,
-        wgpu::TextureViewDimension,
-        wgpu::Texture,
-    ),
+    Texture(wgpu::TextureView, wgpu::TextureFormat, wgpu::TextureViewDimension, wgpu::Texture),
     Pipeline(ComputePipeline),
 }
 pub enum Execution {
@@ -51,7 +40,7 @@ pub struct Context {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
-    pub size: winit::dpi::PhysicalSize<u32>,
+    pub size: (u32, u32),
     pub surface_texture: Option<wgpu::SurfaceTexture>,
     pub surface_texture_view: Option<wgpu::TextureView>,
     to_screen_texture_name: String,
@@ -61,11 +50,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(
-        window: &winit::window::Window,
-        to_screen_texture_name: &str,
-        shaders_folder: &str,
-    ) -> Context {
+    pub fn new(window: &winit::window::Window, to_screen_texture_name: &str, shaders_folder: &str) -> Context {
         let instance = wgpu::Instance::new(wgpu::Backends::VULKAN);
         let surface = unsafe { instance.create_surface(window) };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -83,29 +68,18 @@ impl Context {
         };
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
-                features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
-                    | wgpu::Features::SPIRV_SHADER_PASSTHROUGH
-                    | wgpu::Features::PUSH_CONSTANTS,
+                features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES | wgpu::Features::SPIRV_SHADER_PASSTHROUGH | wgpu::Features::PUSH_CONSTANTS,
                 limits,
                 label: None,
             },
             None, // Trace path
         ))
         .expect("can't create device or command queue");
-        info!(
-            "supported swapchain surface formats: {:?}",
-            surface.get_supported_formats(&adapter)
-        );
+        info!("supported swapchain surface formats: {:?}", surface.get_supported_formats(&adapter));
 
-        let surface_format = match surface
-            .get_supported_formats(&adapter)
-            .contains(&Rgba8Unorm)
-        {
+        let surface_format = match surface.get_supported_formats(&adapter).contains(&Rgba8Unorm) {
             true => Rgba8Unorm,
-            false => match surface
-                .get_supported_formats(&adapter)
-                .contains(&Bgra8Unorm)
-            {
+            false => match surface.get_supported_formats(&adapter).contains(&Bgra8Unorm) {
                 true => Bgra8Unorm,
                 false => panic!("neither Rgba8Unorm nor Brga8Unorm is supported"),
             },
@@ -120,17 +94,13 @@ impl Context {
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
         };
         surface.configure(&device, &config);
-        let size = winit::dpi::PhysicalSize {
-            width: window.inner_size().width,
-            height: window.inner_size().height,
-        };
 
         Context {
             surface,
             device,
             queue,
             config,
-            size,
+            size: (window.inner_size().width, window.inner_size().height),
             surface_texture: None,
             surface_texture_view: None,
             to_screen_texture_name: to_screen_texture_name.to_string(),
@@ -140,11 +110,7 @@ impl Context {
         }
     }
     pub fn get_encoder_for_draw(&mut self) -> wgpu::CommandEncoder {
-        self.surface_texture = Some(
-            self.surface
-                .get_current_texture()
-                .expect("can't get new surface texture"),
-        );
+        self.surface_texture = Some(self.surface.get_current_texture().expect("can't get new surface texture"));
 
         let texture_view_config = wgpu::TextureViewDescriptor {
             format: Some(self.config.format),
@@ -167,25 +133,18 @@ impl Context {
             ));
         }
         self.device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            })
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") })
     }
     pub fn get_encoder(&self) -> wgpu::CommandEncoder {
         self.device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            })
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") })
     }
 
     pub fn image_buffer_to_screen(&self, encoder: &mut wgpu::CommandEncoder) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: self
-                    .surface_texture_view
-                    .as_ref()
-                    .expect("there is no surface texture"),
+                view: self.surface_texture_view.as_ref().expect("there is no surface texture"),
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -213,12 +172,8 @@ impl Context {
             surface.expect("unable to present surface").present();
         }
     }
-    pub fn dispatch_pipeline<PushConstants>(
-        &self,
-        pipeline_name: &str,
-        encoder: &mut CommandEncoder,
-        push_constants: &PushConstants,
-    ) where
+    pub fn dispatch_pipeline<PushConstants>(&self, pipeline_name: &str, encoder: &mut CommandEncoder, push_constants: &PushConstants)
+    where
         PushConstants: bytemuck::Pod,
     {
         let pipeline = self
@@ -226,9 +181,7 @@ impl Context {
             .get(pipeline_name)
             .unwrap_or_else(|| panic!("resource does not exist: {}", pipeline_name));
         {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some(pipeline_name),
-            });
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(pipeline_name) });
 
             match pipeline {
                 GpuResource::Buffer(_) => {
@@ -242,22 +195,13 @@ impl Context {
                     cpass.set_pipeline(&pipeline.pipeline);
                     cpass.set_bind_group(0, &pipeline.bind_group, &[]);
                     cpass.set_push_constants(0, bytemuck::bytes_of(push_constants));
-                    cpass.dispatch_workgroups(
-                        pipeline.work_group_dims.0,
-                        pipeline.work_group_dims.1,
-                        pipeline.work_group_dims.2,
-                    );
+                    cpass.dispatch_workgroups(pipeline.work_group_dims.0, pipeline.work_group_dims.1, pipeline.work_group_dims.2);
                 }
             }
         }
     }
 
-    pub fn pipeline<const M: usize>(
-        &mut self,
-        shader_name: &str,
-        flags: [&str; M],
-        execution_mode: Execution,
-    ) {
+    pub fn pipeline<const M: usize>(&mut self, shader_name: &str, flags: [&str; M], execution_mode: Execution) {
         if self.resources.contains_key(shader_name) {
             if cfg!(debug_assertions) {
                 let shader = self
@@ -280,16 +224,8 @@ impl Context {
         let shader = Shader::get_shader_properties(shader_name, &self.shaders_folder, flags);
 
         let execution_mode = match execution_mode {
-            Execution::PerPixel1D => (
-                (self.size.width * self.size.height + shader.cg_x - 1) / shader.cg_x,
-                1u32,
-                1u32,
-            ),
-            Execution::PerPixel2D => (
-                (self.size.width + shader.cg_x - 1) / shader.cg_x,
-                (self.size.height + shader.cg_y - 1) / shader.cg_y,
-                1,
-            ),
+            Execution::PerPixel1D => ((self.size.0 * self.size.1 + shader.cg_x - 1) / shader.cg_x, 1u32, 1u32),
+            Execution::PerPixel2D => ((self.size.0 + shader.cg_x - 1) / shader.cg_x, (self.size.1 + shader.cg_y - 1) / shader.cg_y, 1),
             Execution::N3D(n) => (
                 (n + shader.cg_x - 1) / shader.cg_x,
                 (n + shader.cg_y - 1) / shader.cg_y,
@@ -301,30 +237,17 @@ impl Context {
         let bindings = shader
             .bindings
             .iter()
-            .map(|resource| {
-                match self
-                    .resources
-                    .get(resource)
-                    .unwrap_or_else(|| panic!("resource does not exist: {}", resource))
-                {
+            .map(
+                |resource| match self.resources.get(resource).unwrap_or_else(|| panic!("resource does not exist: {}", resource)) {
                     GpuResource::Buffer(buffer) => TextureOrBuffer::Buffer(buffer, false),
                     GpuResource::Texture(texture, format, dimension, _) => {
-                        TextureOrBuffer::Texture(
-                            texture,
-                            wgpu::StorageTextureAccess::ReadWrite,
-                            *format,
-                            *dimension,
-                        )
+                        TextureOrBuffer::Texture(texture, wgpu::StorageTextureAccess::ReadWrite, *format, *dimension)
                     }
-                    GpuResource::Pipeline(_) => panic!(
-                        "{} is a pipeline and can not be used as a resource",
-                        resource
-                    ),
-                }
-            })
+                    GpuResource::Pipeline(_) => panic!("{} is a pipeline and can not be used as a resource", resource),
+                },
+            )
             .collect::<Vec<TextureOrBuffer>>();
-        let push_constant_range = shader.push_constant_info.offset
-            ..shader.push_constant_info.offset + shader.push_constant_info.size;
+        let push_constant_range = shader.push_constant_info.offset..shader.push_constant_info.offset + shader.push_constant_info.size;
 
         self.resources.insert(
             shader_name.to_string(),
@@ -368,12 +291,7 @@ impl Context {
             )),
         );
     }
-    pub fn texture(
-        &mut self,
-        texture_name: &str,
-        number_of_elements: (u32, u32, u32),
-        format: wgpu::TextureFormat,
-    ) {
+    pub fn texture(&mut self, texture_name: &str, number_of_elements: (u32, u32, u32), format: wgpu::TextureFormat) {
         if self.resources.contains_key(texture_name) {
             if cfg!(debug_assertions) {
                 let texture = self
@@ -453,14 +371,14 @@ impl Context {
         }
     }
 
-    pub fn set_buffer_data<T: Pod>(
-        &self,
-        buffer_name: &str,
-        data: &[T],
-        data_size: usize,
-        location: usize,
-    ) {
-        info!("writing buffer data to {}, from buffer with {} elements, writing {} bytes starting at {}", buffer_name, data.len(), data_size, location);
+    pub fn set_buffer_data<T: Pod>(&self, buffer_name: &str, data: &[T], data_size: usize, location: usize) {
+        info!(
+            "writing buffer data to {}, from buffer with {} elements, writing {} bytes starting at {}",
+            buffer_name,
+            data.len(),
+            data_size,
+            location
+        );
         let buffer = self
             .resources
             .get(buffer_name)
@@ -475,31 +393,17 @@ impl Context {
             GpuResource::Buffer(b) => b,
         };
 
-        let uploading_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("uploading Buffer"),
-                contents: bytemuck::cast_slice(data),
-                usage: wgpu::BufferUsages::COPY_SRC,
-            });
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        encoder.copy_buffer_to_buffer(
-            &uploading_buffer,
-            0,
-            buffer,
-            location as u64,
-            data_size as u64,
-        );
+        let uploading_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("uploading Buffer"),
+            contents: bytemuck::cast_slice(data),
+            usage: wgpu::BufferUsages::COPY_SRC,
+        });
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        encoder.copy_buffer_to_buffer(&uploading_buffer, 0, buffer, location as u64, data_size as u64);
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 
-    pub async fn read_buffer<T: Pod + Sized + Zeroable>(
-        &self,
-        buffer_name: &str,
-        count: u32,
-    ) -> Vec<T> {
+    pub async fn read_buffer<T: Pod + Sized + Zeroable>(&self, buffer_name: &str, count: u32) -> Vec<T> {
         info!(
             "reading buffer data from {}, with {} elements of size {}",
             buffer_name,
@@ -526,32 +430,19 @@ impl Context {
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        encoder.copy_buffer_to_buffer(
-            buffer,
-            0,
-            &staging_buffer,
-            0,
-            std::mem::size_of::<T>() as u64 * count as u64,
-        );
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        encoder.copy_buffer_to_buffer(buffer, 0, &staging_buffer, 0, std::mem::size_of::<T>() as u64 * count as u64);
         self.queue.submit(Some(encoder.finish()));
 
         let buffer_slice = staging_buffer.slice(..);
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender
-                .send(v)
-                .expect("could not send received data from gpu back to caller")
+            sender.send(v).expect("could not send received data from gpu back to caller")
         });
 
         self.device.poll(wgpu::Maintain::Wait);
 
-        let _ = receiver
-            .receive()
-            .await
-            .expect("never received buffer data");
+        let _ = receiver.receive().await.expect("never received buffer data");
         let data = buffer_slice.get_mapped_range();
         let result = bytemuck::cast_slice(&data).to_vec();
         drop(data);
@@ -559,12 +450,7 @@ impl Context {
         result
     }
 
-    pub fn set_texture_data<T: Pod + Sized + Zeroable>(
-        &mut self,
-        texture_name: &str,
-        data: &[T],
-        image_size: (u32, u32, u32),
-    ) {
+    pub fn set_texture_data<T: Pod + Sized + Zeroable>(&mut self, texture_name: &str, data: &[T], image_size: (u32, u32, u32)) {
         info!(
             "writing texture data to {}, with size {:?}, the data source has size {}",
             texture_name,
@@ -575,13 +461,11 @@ impl Context {
             (image_size.0 * std::mem::size_of::<T>() as u32 % 256) == 0,
             "bytes per row must be multiple of 256"
         );
-        let uploading_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("uploading Buffer"),
-                contents: bytemuck::cast_slice(data),
-                usage: wgpu::BufferUsages::COPY_SRC,
-            });
+        let uploading_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("uploading Buffer"),
+            contents: bytemuck::cast_slice(data),
+            usage: wgpu::BufferUsages::COPY_SRC,
+        });
         let resource = self
             .resources
             .get(texture_name)
@@ -602,14 +486,8 @@ impl Context {
                 buffer: &uploading_buffer,
                 layout: ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(
-                        NonZeroU32::new(bytes_per_row)
-                            .unwrap_or_else(|| panic!("impossible image width: {}", image_size.0)),
-                    ),
-                    rows_per_image: Some(
-                        NonZeroU32::new(rows_per_image)
-                            .unwrap_or_else(|| panic!("impossible image height: {}", image_size.1)),
-                    ),
+                    bytes_per_row: Some(NonZeroU32::new(bytes_per_row).unwrap_or_else(|| panic!("impossible image width: {}", image_size.0))),
+                    rows_per_image: Some(NonZeroU32::new(rows_per_image).unwrap_or_else(|| panic!("impossible image height: {}", image_size.1))),
                 },
             },
             ImageCopyTexture {

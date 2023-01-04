@@ -48,21 +48,13 @@ const HALF_HEIGHT: u32 = HEIGHT / 2;
 
 impl Game for RayTracer {
     fn on_init(window: &Window) -> Self {
-        let mut gpu_context = Context::new(
-            window,
-            "to_draw_texture",
-            "crates/CoGrRs/examples/ray_tracer/",
-        );
+        let mut gpu_context = Context::new(window, "to_draw_texture", "examples/ray_tracer/");
 
-        gpu_context.texture(
-            "to_draw_texture",
-            (WIDTH, HEIGHT, 1),
-            gpu_context.config.format,
-        );
+        gpu_context.texture("to_draw_texture", (WIDTH, HEIGHT, 1), gpu_context.config.format);
 
         let screen_buffer = vec![[0; 4]; (WIDTH * HEIGHT) as usize];
 
-        let mut bvh = Bvh::new("crates/CoGrRs/examples/ray_tracer/dragon.obj");
+        let mut bvh = Bvh::new("examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
 
         let ui = MainGui::new(&gpu_context, window);
@@ -87,12 +79,7 @@ impl Game for RayTracer {
             std::mem::size_of::<[f32; 4]>() * bvh.triangles.len(),
             0,
         );
-        gpu_context.set_buffer_data(
-            "indices_block",
-            bvh.indices.as_slice(),
-            std::mem::size_of::<u32>() * bvh.indices.len(),
-            0,
-        );
+        gpu_context.set_buffer_data("indices_block", bvh.indices.as_slice(), std::mem::size_of::<u32>() * bvh.indices.len(), 0);
         gpu_context.set_buffer_data(
             "bvh_nodes_block",
             bvh.bvh_nodes.as_slice(),
@@ -114,11 +101,7 @@ impl Game for RayTracer {
     fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult {
         self.time += dt;
         self.distance += input.mouse_state.scroll_delta;
-        let ray_origin = Point::new(
-            self.time.sin() * self.distance,
-            0f32,
-            self.time.cos() * self.distance,
-        );
+        let ray_origin = Point::new(self.time.sin() * self.distance, 0f32, self.time.cos() * self.distance);
         let ray_direction = normalize(Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
         let ray_side = cross(ray_direction, normalize(Point::new(0f32, 1f32, 0f32)));
         let ray_up = cross(ray_direction, ray_side);
@@ -183,16 +166,11 @@ impl RayTracer {
 
                 let screen_point = camera_data.pos
                     + camera_data.dir
-                    + camera_data.side * (x - camera_data.half_width)
-                        / (camera_data.width / (camera_data.width / camera_data.height))
+                    + camera_data.side * (x - camera_data.half_width) / (camera_data.width / (camera_data.width / camera_data.height))
                     + camera_data.up * (y - camera_data.half_height) / camera_data.height;
 
                 let ray_direction = normalize(screen_point - camera_data.pos);
-                let ray_r_direction = Point::new(
-                    1f32 / ray_direction.pos[0],
-                    1f32 / ray_direction.pos[1],
-                    1f32 / ray_direction.pos[2],
-                );
+                let ray_r_direction = Point::new(1f32 / ray_direction.pos[0], 1f32 / ray_direction.pos[1], 1f32 / ray_direction.pos[2]);
                 let mut ray = Ray {
                     o: camera_data.pos,
                     d: ray_direction,
@@ -207,36 +185,24 @@ impl RayTracer {
 
                 if ray.t < 10000000f32 {
                     let normal = self.bvh.triangle_normal(ray.prim);
-                    let intensity =
-                        (dot(normal, normalize(Point::new(1f32, -1f32, 1f32))) + 1f32) / 10f32;
+                    let intensity = (dot(normal, normalize(Point::new(1f32, -1f32, 1f32))) + 1f32) / 10f32;
 
-                    [
-                        (intensity * 255f32) as u8,
-                        (intensity * 255f32) as u8,
-                        (intensity * 255f32) as u8,
-                        255,
-                    ]
+                    [(intensity * 255f32) as u8, (intensity * 255f32) as u8, (intensity * 255f32) as u8, 255]
                 } else {
                     [0, 0, 0, 255]
                 }
             })
             .collect_into_vec(&mut self.screen_buffer);
 
-        self.gpu_context.set_texture_data(
-            "depth",
-            self.screen_buffer.as_slice(),
-            (WIDTH, HEIGHT, 1),
-        );
+        self.gpu_context.set_texture_data("depth", self.screen_buffer.as_slice(), (WIDTH, HEIGHT, 1));
         let mut encoder = self.gpu_context.get_encoder();
 
-        self.gpu_context
-            .dispatch_pipeline("draw", &mut encoder, &[0; 0]);
+        self.gpu_context.dispatch_pipeline("draw", &mut encoder, &[0; 0]);
         self.gpu_context.execute_encoder(encoder);
     }
     fn render_gpu(&mut self, camera_data: &CameraData) {
         let mut encoder = self.gpu_context.get_encoder();
-        self.gpu_context
-            .dispatch_pipeline("trace", &mut encoder, camera_data);
+        self.gpu_context.dispatch_pipeline("trace", &mut encoder, camera_data);
         self.gpu_context.execute_encoder(encoder);
     }
 }

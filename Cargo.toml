@@ -1,9 +1,13 @@
-[workspace]
-members = [
-    "crates/cogrrs",
-    "crates/gpu",
-    "crates/ui"
-]
-resolver = "2"
+[package]
+name = "cogrrs"
+version = "0.1.0"
+edition = "2021"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dependencies]
+gpu = {path = "crates/gpu"}
+ui = {path = "crates/ui"}
+window = {path = "crates/window"}
+bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
+rayon = {version="1.6"}
