@@ -26,8 +26,7 @@ struct Triangle{
 
 layout(rgba8, binding=0) uniform image2D to_draw_texture;
 layout(std430, binding=1) buffer triangles_block { Triangle triangles[]; };
-layout(std430, binding=2) buffer indices_block { uint indices[]; };
-layout(std430, binding=3) buffer bvh_nodes_block { BVHNode bvh_nodes[]; };
+layout(std430, binding=2) buffer bvh_nodes_block { BVHNode bvh_nodes[]; };
 layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 layout(push_constant) uniform constants
@@ -132,7 +131,7 @@ void traverse(
                     ray_dir, 
                     ray_t, 
                     prim_id,
-                    indices[bvh_nodes[node_index].left_first + i]
+                    bvh_nodes[node_index].left_first + i
                 );
             }
             if (stack_ptr == 0){

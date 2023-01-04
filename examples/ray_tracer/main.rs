@@ -62,7 +62,6 @@ impl Game for RayTracer {
 
         gpu_context.texture("depth", (WIDTH, HEIGHT, 1), Rgba8Uint);
         gpu_context.buffer::<[Point; 4]>("triangles_block", bvh.triangles.len() as u32);
-        gpu_context.buffer::<u32>("indices_block", bvh.indices.len() as u32);
         gpu_context.buffer::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.len() as u32);
         gpu_context.pipeline("draw", [], PerPixel2D);
         gpu_context.pipeline("trace", [], PerPixel2D);
@@ -73,7 +72,6 @@ impl Game for RayTracer {
             std::mem::size_of::<[Point; 4]>() * bvh.triangles.len(),
             0,
         );
-        gpu_context.set_buffer_data("indices_block", bvh.indices.as_slice(), std::mem::size_of::<u32>() * bvh.indices.len(), 0);
         gpu_context.set_buffer_data(
             "bvh_nodes_block",
             bvh.bvh_nodes.as_slice(),

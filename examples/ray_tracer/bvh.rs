@@ -323,6 +323,8 @@ impl Bvh {
         self.centroids = Vec::new();
         self.bvh_nodes.truncate(new_node_index as usize);
         self.bvh_nodes.shrink_to_fit();
+
+        self.triangles = self.indices.iter().map(|index| self.triangles[*index as usize]).collect();
     }
 
     //loop invariants:
@@ -535,7 +537,7 @@ impl Bvh {
         'outer: loop {
             if self.bvh_nodes[node_index].count > 0 {
                 for i in 0..self.bvh_nodes[node_index].count {
-                    self.intersects_triangle(ray, self.indices[(self.bvh_nodes[node_index].left_first + i) as usize])
+                    self.intersects_triangle(ray, self.bvh_nodes[node_index].left_first as u32 + i as u32)
                 }
                 if stack_ptr == 0 {
                     break;
