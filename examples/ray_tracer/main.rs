@@ -95,16 +95,9 @@ impl Game for RayTracer {
         self.time += dt;
 
         self.frame_number += 1;
-        if self.frame_number == 1000 {
-            println!("time: {}", self.time)
-        }
 
         self.distance += input.mouse_state.scroll_delta;
-        let ray_origin = Point::new(
-            (self.frame_number as f32 * 0.1).sin() * self.distance,
-            0f32,
-            (self.frame_number as f32 * 0.1).cos() * self.distance,
-        );
+        let ray_origin = Point::new(self.time.sin() * self.distance, 0f32, self.time.cos() * self.distance);
         let ray_direction = normalize(Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
         let ray_side = cross(ray_direction, normalize(Point::new(0f32, 1f32, 0f32)));
         let ray_up = cross(ray_direction, ray_side);
@@ -134,7 +127,7 @@ impl Game for RayTracer {
 
         self.gpu_context.image_buffer_to_screen(&mut encoder);
 
-        self.ui.text("fps", &(1f32 / (self.time / self.frame_number as f32)).to_string());
+        self.ui.text("fps", &(1f32 / dt).to_string());
 
         self.render_on_gpu = self.ui.combobox("gpu_rendering", vec!["GPU", "CPU"]) == "GPU";
 
