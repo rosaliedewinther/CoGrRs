@@ -8,6 +8,7 @@ mod texture;
 mod to_screen_pipeline;
 
 use crate::compute_pipeline::ComputePipeline;
+use std::fmt::Debug;
 use std::{cmp::max, collections::HashMap, num::NonZeroU32};
 
 use bytemuck::{Pod, Zeroable};
@@ -22,17 +23,36 @@ use wgpu::IndexFormat::Uint16;
 
 use crate::{buffer::init_storage_buffer, compute_pipeline::TextureOrBuffer, texture::init_texture, to_screen_pipeline::ToScreenPipeline};
 
-#[derive(Debug)]
 enum GpuResource {
     Buffer(wgpu::Buffer),
     Texture(wgpu::TextureView, wgpu::TextureFormat, wgpu::TextureViewDimension, wgpu::Texture),
-    Pipeline(ComputePipeline),
+    Pipeline(ComputePipeline, Shader),
 }
+
+impl Debug for GpuResource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Buffer(arg0) => f.debug_tuple("Buffer").field(arg0).finish(),
+            Self::Texture(arg0, arg1, arg2, arg3) => f.debug_tuple("Texture").field(arg0).field(arg1).field(arg2).field(arg3).finish(),
+            Self::Pipeline(arg0, arg1) => f.debug_tuple("Pipeline").field(arg0).field(arg1).finish(),
+        }
+    }
+}
+
 pub enum Execution {
     PerPixel1D,
     PerPixel2D,
     N3D(u32),
     N1D(u32),
+}
+
+#[derive(Debug)]
+enum PipelineCreationError {
+    PipelineAlreadyExists(String),
+    NameAlreadyUsedByTexture(String),
+    NameAlreadyUsedByBuffer(String),
+    ResourceDoesntExist(String),
+    PipelineUsedAsShaderResource(String),
 }
 
 pub struct Context {
@@ -172,58 +192,87 @@ impl Context {
             surface.expect("unable to present surface").present();
         }
     }
-    pub fn dispatch_pipeline<PushConstants>(&self, pipeline_name: &str, encoder: &mut CommandEncoder, push_constants: &PushConstants)
+    pub fn dispatch_pipeline<PushConstants>(
+        &mut self,
+        pipeline_name: &str,
+        execution_mode: Execution,
+        encoder: &mut CommandEncoder,
+        push_constants: &PushConstants,
+    ) -> &Self
     where
         PushConstants: bytemuck::Pod,
     {
-        let pipeline = self
-            .resources
-            .get(pipeline_name)
-            .unwrap_or_else(|| panic!("resource does not exist: {}", pipeline_name));
-        {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(pipeline_name) });
-
-            match pipeline {
-                GpuResource::Buffer(_) => {
-                    panic!("{} is not a compute pipeline but a buffer", pipeline_name)
-                }
-                GpuResource::Texture(_, _, _, _) => {
-                    panic!("{} is not a compute pipeline but a texture", pipeline_name)
-                }
-                GpuResource::Pipeline(pipeline) => {
+        loop {
+            match self.resources.get(pipeline_name) {
+                Some(GpuResource::Buffer(_)) => panic!("{} is not a compute pipeline but a buffer", pipeline_name),
+                Some(GpuResource::Texture(_, _, _, _)) => panic!("{} is not a compute pipeline but a texture", pipeline_name),
+                Some(GpuResource::Pipeline(pipeline, shader)) => {
+                    let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(pipeline_name) });
+                    let exec_dims = self.get_execution_dims(shader, execution_mode);
                     cpass.insert_debug_marker(pipeline_name);
                     cpass.set_pipeline(&pipeline.pipeline);
                     cpass.set_bind_group(0, &pipeline.bind_group, &[]);
                     cpass.set_push_constants(0, bytemuck::bytes_of(push_constants));
-                    cpass.dispatch_workgroups(pipeline.work_group_dims.0, pipeline.work_group_dims.1, pipeline.work_group_dims.2);
+                    cpass.dispatch_workgroups(exec_dims.0, exec_dims.1, exec_dims.2);
+                    break;
                 }
+                None => match self.init_pipeline(pipeline_name) {
+                    Ok(_) => continue,
+                    Err(error) => panic!("{:?}", error),
+                },
             }
         }
+        self
     }
 
-    pub fn pipeline<const M: usize>(&mut self, shader_name: &str, flags: [&str; M], execution_mode: Execution) {
-        if self.resources.contains_key(shader_name) {
-            if cfg!(debug_assertions) {
-                let shader = self
-                    .resources
-                    .get(shader_name)
-                    .unwrap_or_else(|| panic!("resource does not exist: {}", shader_name));
-                match shader {
-                    GpuResource::Texture(_, _, _, _) => {
-                        panic!("{} is not a shader but a texture", shader_name)
-                    }
-                    GpuResource::Buffer(_) => {
-                        panic!("{} is not a shader but a buffer", shader_name)
-                    }
-                    _ => (),
-                }
+    fn init_pipeline(&mut self, shader_name: &str) -> Result<(), Vec<PipelineCreationError>> {
+        match self.resources.get(shader_name) {
+            Some(GpuResource::Texture(_, _, _, _)) => {
+                return Err(vec![PipelineCreationError::NameAlreadyUsedByTexture(shader_name.to_string())]);
             }
-            return;
+            Some(GpuResource::Buffer(_)) => {
+                return Err(vec![PipelineCreationError::NameAlreadyUsedByBuffer(shader_name.to_string())]);
+            }
+            Some(GpuResource::Pipeline(_, _)) => return Err(vec![PipelineCreationError::PipelineAlreadyExists(shader_name.to_string())]),
+            None => (),
         }
 
-        let shader = Shader::get_shader_properties(shader_name, &self.shaders_folder, flags);
+        let shader = Shader::get_shader_properties(shader_name, &self.shaders_folder);
 
-        let execution_mode = match execution_mode {
+        let mut errors = Vec::new();
+
+        let bindings = shader
+            .bindings
+            .iter()
+            .map(|resource| match self.resources.get(resource) {
+                Some(GpuResource::Buffer(buffer)) => Ok(TextureOrBuffer::Buffer(buffer, false)),
+                Some(GpuResource::Texture(texture, format, dimension, _)) => {
+                    Ok(TextureOrBuffer::Texture(texture, wgpu::StorageTextureAccess::ReadWrite, *format, *dimension))
+                }
+                Some(GpuResource::Pipeline(_, _)) => Err(PipelineCreationError::PipelineUsedAsShaderResource(resource.to_string())),
+                None => Err(PipelineCreationError::ResourceDoesntExist(resource.to_string())),
+            })
+            .filter_map(|r| r.map_err(|e| errors.push(e)).ok())
+            .collect::<Vec<TextureOrBuffer>>();
+
+        if errors.is_empty() {
+            return Err(errors);
+        }
+
+        let push_constant_range = shader.push_constant_info.offset..shader.push_constant_info.offset + shader.push_constant_info.size;
+
+        self.resources.insert(
+            shader_name.to_string(),
+            GpuResource::Pipeline(
+                ComputePipeline::new(self, shader_name, shader.shader.as_slice(), bindings.as_slice(), Some(push_constant_range)),
+                shader,
+            ),
+        );
+        Ok(())
+    }
+
+    fn get_execution_dims(&self, shader: &Shader, execution_mode: Execution) -> (u32, u32, u32) {
+        match execution_mode {
             Execution::PerPixel1D => ((self.size.0 * self.size.1 + shader.cg_x - 1) / shader.cg_x, 1u32, 1u32),
             Execution::PerPixel2D => ((self.size.0 + shader.cg_x - 1) / shader.cg_x, (self.size.1 + shader.cg_y - 1) / shader.cg_y, 1),
             Execution::N3D(n) => (
@@ -232,34 +281,7 @@ impl Context {
                 (n + shader.cg_z - 1) / shader.cg_z,
             ),
             Execution::N1D(n) => ((n + shader.cg_x - 1) / shader.cg_x, 1, 1),
-        };
-
-        let bindings = shader
-            .bindings
-            .iter()
-            .map(
-                |resource| match self.resources.get(resource).unwrap_or_else(|| panic!("resource does not exist: {}", resource)) {
-                    GpuResource::Buffer(buffer) => TextureOrBuffer::Buffer(buffer, false),
-                    GpuResource::Texture(texture, format, dimension, _) => {
-                        TextureOrBuffer::Texture(texture, wgpu::StorageTextureAccess::ReadWrite, *format, *dimension)
-                    }
-                    GpuResource::Pipeline(_) => panic!("{} is a pipeline and can not be used as a resource", resource),
-                },
-            )
-            .collect::<Vec<TextureOrBuffer>>();
-        let push_constant_range = shader.push_constant_info.offset..shader.push_constant_info.offset + shader.push_constant_info.size;
-
-        self.resources.insert(
-            shader_name.to_string(),
-            GpuResource::Pipeline(ComputePipeline::new(
-                self,
-                shader_name,
-                shader.shader.as_slice(),
-                bindings.as_slice(),
-                execution_mode,
-                Some(push_constant_range),
-            )),
-        );
+        }
     }
 
     pub fn buffer<Type>(&mut self, buffer_name: &str, number_of_elements: u32) {
@@ -273,7 +295,7 @@ impl Context {
                     GpuResource::Texture(_, _, _, _) => {
                         panic!("{} is not a buffer but a texture", buffer_name)
                     }
-                    GpuResource::Pipeline(_) => {
+                    GpuResource::Pipeline(_, _) => {
                         panic!("{} is not a buffer but a pipeline", buffer_name)
                     }
                     _ => (),
@@ -302,7 +324,7 @@ impl Context {
                     GpuResource::Buffer(_) => {
                         panic!("{} is not a texture but a buffer", texture_name)
                     }
-                    GpuResource::Pipeline(_) => {
+                    GpuResource::Pipeline(_, _) => {
                         panic!("{} is not a texture but a buffer", texture_name)
                     }
                     _ => (),
@@ -348,7 +370,7 @@ impl Context {
             GpuResource::Buffer(_) => {
                 panic!("{} is not a texture but a buffer", texture_name)
             }
-            GpuResource::Pipeline(_) => {
+            GpuResource::Pipeline(_, _) => {
                 panic!("{} is not a texture but a buffer", texture_name)
             }
             GpuResource::Texture(t, _, _, _) => t,
@@ -364,7 +386,7 @@ impl Context {
             GpuResource::Texture(_, _, _, _) => {
                 panic!("{} is not a buffer but a texture", buffer_name)
             }
-            GpuResource::Pipeline(_) => {
+            GpuResource::Pipeline(_, _) => {
                 panic!("{} is not a buffer but a pipeline", buffer_name)
             }
             GpuResource::Buffer(b) => b,
@@ -387,7 +409,7 @@ impl Context {
             GpuResource::Texture(_, _, _, _) => {
                 panic!("{} is not a buffer but a texture", buffer_name)
             }
-            GpuResource::Pipeline(_) => {
+            GpuResource::Pipeline(_, _) => {
                 panic!("{} is not a buffer but a pipeline", buffer_name)
             }
             GpuResource::Buffer(b) => b,
@@ -418,7 +440,7 @@ impl Context {
             GpuResource::Texture(_, _, _, _) => {
                 panic!("{} is not a buffer but a texture", buffer_name)
             }
-            GpuResource::Pipeline(_) => {
+            GpuResource::Pipeline(_, _) => {
                 panic!("{} is not a buffer but a pipeline", buffer_name)
             }
             GpuResource::Buffer(b) => b,
@@ -473,7 +495,7 @@ impl Context {
         let texture = match resource {
             GpuResource::Buffer(_) => panic!("{} is not a texture but a buffer", texture_name),
             GpuResource::Texture(_, _, _, tex) => tex,
-            GpuResource::Pipeline(_) => panic!("{} is not a buffer but a pipeline", texture_name),
+            GpuResource::Pipeline(_, _) => panic!("{} is not a buffer but a pipeline", texture_name),
         };
 
         let mut encoder = self.get_encoder();

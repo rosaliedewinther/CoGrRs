@@ -25,7 +25,6 @@ impl Game for HelloSine {
         let mut gpu_context = Context::new(window, "to_draw_texture", "examples/hello_sine/");
 
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
-        gpu_context.pipeline("sine", [], PerPixel2D);
 
         let ui = MainGui::new(&gpu_context, window);
 
@@ -37,7 +36,7 @@ impl Game for HelloSine {
 
         self.time += dt;
         let gpu_data = GpuData { time: self.time };
-        self.gpu_context.dispatch_pipeline("sine", &mut encoder, &gpu_data);
+        self.gpu_context.dispatch_pipeline("sine", PerPixel2D, &mut encoder, &gpu_data);
         self.gpu_context.image_buffer_to_screen(&mut encoder);
 
         self.gpu_context.execute_encoder(encoder);

@@ -1,25 +1,40 @@
+use std::fmt::Debug;
+
 use inline_spirv_runtime::{ShaderCompilationConfig, ShaderKind};
 use regex::Regex;
 use rspirv_reflect::PushConstantInfo;
 
-pub struct Shader<'a> {
+pub struct Shader {
     pub config: ShaderCompilationConfig,
     pub shader: Vec<u32>,
     pub push_constant_info: PushConstantInfo,
-    pub shader_bytes: &'a [u8],
+    //pub shader_bytes: &'a [u8],
     pub cg_x: u32, //compute group size x
     pub cg_y: u32,
     pub cg_z: u32,
     pub bindings: Vec<String>,
 }
 
-impl<'a> Shader<'a> {
-    pub fn get_shader_properties<const M: usize>(shader_name: &str, shaders_folder: &str, flags: [&str; M]) -> Shader<'a> {
+impl Debug for Shader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Shader")
+            .field("shader", &self.shader)
+            .field("push_constant_offset", &self.push_constant_info.offset)
+            .field("push_constant_size", &self.push_constant_info.size)
+            .field("cg_x", &self.cg_x)
+            .field("cg_y", &self.cg_y)
+            .field("cg_z", &self.cg_z)
+            .field("bindings", &self.bindings)
+            .finish()
+    }
+}
+
+impl Shader {
+    pub fn get_shader_properties(shader_name: &str, shaders_folder: &str) -> Shader {
         let mut config = inline_spirv_runtime::ShaderCompilationConfig::default();
         config.debug = true;
         config.kind = ShaderKind::Compute;
         let shader_file = shaders_folder.to_string() + shader_name + ".comp";
-        flags.iter().for_each(|flag| config.defs.push((flag.to_string(), None)));
 
         let shader_vec: Vec<u32> = inline_spirv_runtime::runtime_compile(
             &std::fs::read_to_string(&shader_file).unwrap_or_else(|_| panic!("Could not find {}", shader_file)),
@@ -53,7 +68,6 @@ impl<'a> Shader<'a> {
         Shader {
             config,
             shader: shader_vec,
-            shader_bytes: shader,
             cg_x: compute_group_sizes.0,
             cg_y: compute_group_sizes.1,
             cg_z: compute_group_sizes.2,
