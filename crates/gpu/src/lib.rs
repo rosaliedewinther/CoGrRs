@@ -15,7 +15,7 @@ use bytemuck::{Pod, Zeroable};
 use wgpu::TextureFormat::Bgra8Unorm;
 use wgpu::TextureFormat::Rgba8Unorm;
 
-use log::info;
+use log::{info, warn};
 
 use wgpu::{util::DeviceExt, CommandEncoder, Extent3d, ImageCopyBuffer, ImageCopyTexture, ImageDataLayout, TextureViewDimension};
 
@@ -255,7 +255,7 @@ impl Context {
             .filter_map(|r| r.map_err(|e| errors.push(e)).ok())
             .collect::<Vec<TextureOrBuffer>>();
 
-        if errors.is_empty() {
+        if !errors.is_empty() {
             return Err(errors);
         }
 
@@ -285,191 +285,146 @@ impl Context {
     }
 
     pub fn buffer<Type>(&mut self, buffer_name: &str, number_of_elements: u32) {
-        if self.resources.contains_key(buffer_name) {
-            if cfg!(debug_assertions) {
-                let buffer = self
-                    .resources
-                    .get(buffer_name)
-                    .unwrap_or_else(|| panic!("resource does not exist: {}", buffer_name));
-                match buffer {
-                    GpuResource::Texture(_, _, _, _) => {
-                        panic!("{} is not a buffer but a texture", buffer_name)
-                    }
-                    GpuResource::Pipeline(_, _) => {
-                        panic!("{} is not a buffer but a pipeline", buffer_name)
-                    }
-                    _ => (),
-                }
+        match self.resources.get(buffer_name) {
+            Some(GpuResource::Texture(_, _, _, _)) => panic!("{} is not a buffer but a texture", buffer_name),
+            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a buffer but a pipeline", buffer_name),
+            Some(GpuResource::Buffer(_)) => warn!("buffer {} already exists", buffer_name),
+            None => {
+                self.resources.insert(
+                    buffer_name.to_string(),
+                    GpuResource::Buffer(init_storage_buffer(
+                        self,
+                        buffer_name,
+                        number_of_elements * std::mem::size_of::<Type>() as u32,
+                        true,
+                    )),
+                );
             }
-            return;
         }
-        self.resources.insert(
-            buffer_name.to_string(),
-            GpuResource::Buffer(init_storage_buffer(
-                self,
-                buffer_name,
-                number_of_elements * std::mem::size_of::<Type>() as u32,
-                true,
-            )),
-        );
     }
     pub fn texture(&mut self, texture_name: &str, number_of_elements: (u32, u32, u32), format: wgpu::TextureFormat) {
-        if self.resources.contains_key(texture_name) {
-            if cfg!(debug_assertions) {
-                let texture = self
-                    .resources
-                    .get(texture_name)
-                    .unwrap_or_else(|| panic!("resource does not exist: {}", texture_name));
-                match texture {
-                    GpuResource::Buffer(_) => {
-                        panic!("{} is not a texture but a buffer", texture_name)
-                    }
-                    GpuResource::Pipeline(_, _) => {
-                        panic!("{} is not a texture but a buffer", texture_name)
-                    }
-                    _ => (),
-                }
+        match self.resources.get(texture_name) {
+            Some(GpuResource::Buffer(_)) => panic!("{} is not a texture but a buffer", texture_name),
+            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a texture but a buffer", texture_name),
+            Some(GpuResource::Texture(_, _, _, _)) => warn!("texture {} already exists", texture_name),
+            None => {
+                let (texture, texture_view) = init_texture(
+                    self,
+                    texture_name,
+                    number_of_elements.0,
+                    number_of_elements.1,
+                    match number_of_elements.2 {
+                        0 => None,
+                        1 => None,
+                        _ => Some(number_of_elements.2),
+                    },
+                    format,
+                );
+
+                self.resources.insert(
+                    texture_name.to_string(),
+                    GpuResource::Texture(
+                        texture_view,
+                        format,
+                        match number_of_elements.2 {
+                            0 => TextureViewDimension::D2,
+                            1 => TextureViewDimension::D2,
+                            _ => TextureViewDimension::D3,
+                        },
+                        texture,
+                    ),
+                );
             }
-            return;
         }
-
-        let (texture, texture_view) = init_texture(
-            self,
-            texture_name,
-            number_of_elements.0,
-            number_of_elements.1,
-            match number_of_elements.2 {
-                0 => None,
-                1 => None,
-                _ => Some(number_of_elements.2),
-            },
-            format,
-        );
-
-        self.resources.insert(
-            texture_name.to_string(),
-            GpuResource::Texture(
-                texture_view,
-                format,
-                match number_of_elements.2 {
-                    0 => TextureViewDimension::D2,
-                    1 => TextureViewDimension::D2,
-                    _ => TextureViewDimension::D3,
-                },
-                texture,
-            ),
-        );
     }
 
     pub fn get_raw_texture(&self, texture_name: &str) -> &wgpu::TextureView {
-        match self
-            .resources
-            .get(texture_name)
-            .unwrap_or_else(|| panic!("resource does not exist: {}", texture_name))
-        {
-            GpuResource::Buffer(_) => {
-                panic!("{} is not a texture but a buffer", texture_name)
-            }
-            GpuResource::Pipeline(_, _) => {
-                panic!("{} is not a texture but a buffer", texture_name)
-            }
-            GpuResource::Texture(t, _, _, _) => t,
+        match self.resources.get(texture_name) {
+            Some(GpuResource::Buffer(_)) => panic!("{} is not a texture but a buffer", texture_name),
+            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a texture but a buffer", texture_name),
+            Some(GpuResource::Texture(t, _, _, _)) => t,
+            None => panic!("resource does not exist: {}", texture_name),
         }
     }
 
     pub fn get_raw_buffer(&self, buffer_name: &str) -> &wgpu::Buffer {
-        match self
-            .resources
-            .get(buffer_name)
-            .unwrap_or_else(|| panic!("resource does not exist: {}", buffer_name))
-        {
-            GpuResource::Texture(_, _, _, _) => {
-                panic!("{} is not a buffer but a texture", buffer_name)
-            }
-            GpuResource::Pipeline(_, _) => {
-                panic!("{} is not a buffer but a pipeline", buffer_name)
-            }
-            GpuResource::Buffer(b) => b,
+        match self.resources.get(buffer_name) {
+            Some(GpuResource::Texture(_, _, _, _)) => panic!("{} is not a buffer but a texture", buffer_name),
+            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a buffer but a pipeline", buffer_name),
+            Some(GpuResource::Buffer(b)) => b,
+            None => panic!("resource does not exist: {}", buffer_name),
         }
     }
 
-    pub fn set_buffer_data<T: Pod>(&self, buffer_name: &str, data: &[T], data_size: usize, location: usize) {
+    pub fn set_buffer_data<T: Pod>(&self, buffer_name: &str, data: &[T], elements_to_copy: usize, element_copy_start: usize) {
         info!(
             "writing buffer data to {}, from buffer with {} elements, writing {} bytes starting at {}",
             buffer_name,
             data.len(),
-            data_size,
-            location
+            elements_to_copy * std::mem::size_of::<T>(),
+            element_copy_start * std::mem::size_of::<T>()
         );
-        let buffer = self
-            .resources
-            .get(buffer_name)
-            .unwrap_or_else(|| panic!("resource does not exist: {}", buffer_name));
-        let buffer = match buffer {
-            GpuResource::Texture(_, _, _, _) => {
-                panic!("{} is not a buffer but a texture", buffer_name)
+        match self.resources.get(buffer_name) {
+            Some(GpuResource::Texture(_, _, _, _)) => panic!("{} is not a buffer but a texture", buffer_name),
+            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a buffer but a pipeline", buffer_name),
+            None => panic!("resource does not exist: {}", buffer_name),
+            Some(GpuResource::Buffer(b)) => {
+                let uploading_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("uploading Buffer"),
+                    contents: bytemuck::cast_slice(data),
+                    usage: wgpu::BufferUsages::COPY_SRC,
+                });
+                let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                encoder.copy_buffer_to_buffer(
+                    &uploading_buffer,
+                    0,
+                    b,
+                    (element_copy_start * std::mem::size_of::<T>()) as u64,
+                    (elements_to_copy * std::mem::size_of::<T>()) as u64,
+                );
+                self.queue.submit(std::iter::once(encoder.finish()));
             }
-            GpuResource::Pipeline(_, _) => {
-                panic!("{} is not a buffer but a pipeline", buffer_name)
-            }
-            GpuResource::Buffer(b) => b,
         };
-
-        let uploading_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("uploading Buffer"),
-            contents: bytemuck::cast_slice(data),
-            usage: wgpu::BufferUsages::COPY_SRC,
-        });
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        encoder.copy_buffer_to_buffer(&uploading_buffer, 0, buffer, location as u64, data_size as u64);
-        self.queue.submit(std::iter::once(encoder.finish()));
     }
 
-    pub async fn read_buffer<T: Pod + Sized + Zeroable>(&self, buffer_name: &str, count: u32) -> Vec<T> {
+    pub async fn read_buffer<T: Pod + Sized + Zeroable>(&self, buffer_name: &str, elements_to_copy: usize) -> Vec<T> {
         info!(
-            "reading buffer data from {}, with {} elements of size {}",
+            "reading buffer data from {}, with {} elements with a size of {} bytes",
             buffer_name,
-            count,
+            elements_to_copy,
             std::mem::size_of::<T>()
         );
-        let buffer = self
-            .resources
-            .get(buffer_name)
-            .unwrap_or_else(|| panic!("resource does not exist: {}", buffer_name));
-        let buffer = match buffer {
-            GpuResource::Texture(_, _, _, _) => {
-                panic!("{} is not a buffer but a texture", buffer_name)
+        match self.resources.get(buffer_name) {
+            Some(GpuResource::Texture(_, _, _, _)) => panic!("{} is not a buffer but a texture", buffer_name),
+            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a buffer but a pipeline", buffer_name),
+            None => panic!("resource does not exist: {}", buffer_name),
+            Some(GpuResource::Buffer(b)) => {
+                let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: None,
+                    size: std::mem::size_of::<T>() as u64 * elements_to_copy as u64,
+                    usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                encoder.copy_buffer_to_buffer(b, 0, &staging_buffer, 0, std::mem::size_of::<T>() as u64 * elements_to_copy as u64);
+                self.queue.submit(Some(encoder.finish()));
+
+                let buffer_slice = staging_buffer.slice(..);
+                let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
+                buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
+                    sender.send(v).expect("could not send received data from gpu back to caller")
+                });
+
+                self.device.poll(wgpu::Maintain::Wait);
+
+                let _ = receiver.receive().await.expect("never received buffer data");
+                let data = buffer_slice.get_mapped_range();
+                let result = bytemuck::cast_slice(&data).to_vec();
+                drop(data);
+                staging_buffer.unmap();
+                result
             }
-            GpuResource::Pipeline(_, _) => {
-                panic!("{} is not a buffer but a pipeline", buffer_name)
-            }
-            GpuResource::Buffer(b) => b,
-        };
-
-        let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: std::mem::size_of::<T>() as u64 * count as u64,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        encoder.copy_buffer_to_buffer(buffer, 0, &staging_buffer, 0, std::mem::size_of::<T>() as u64 * count as u64);
-        self.queue.submit(Some(encoder.finish()));
-
-        let buffer_slice = staging_buffer.slice(..);
-        let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |v| {
-            sender.send(v).expect("could not send received data from gpu back to caller")
-        });
-
-        self.device.poll(wgpu::Maintain::Wait);
-
-        let _ = receiver.receive().await.expect("never received buffer data");
-        let data = buffer_slice.get_mapped_range();
-        let result = bytemuck::cast_slice(&data).to_vec();
-        drop(data);
-        staging_buffer.unmap();
-        result
+        }
     }
 
     pub fn set_texture_data<T: Pod + Sized + Zeroable>(&mut self, texture_name: &str, data: &[T], image_size: (u32, u32, u32)) {
@@ -488,43 +443,40 @@ impl Context {
             contents: bytemuck::cast_slice(data),
             usage: wgpu::BufferUsages::COPY_SRC,
         });
-        let resource = self
-            .resources
-            .get(texture_name)
-            .unwrap_or_else(|| panic!("resource does not exist: {}", texture_name));
-        let texture = match resource {
-            GpuResource::Buffer(_) => panic!("{} is not a texture but a buffer", texture_name),
-            GpuResource::Texture(_, _, _, tex) => tex,
-            GpuResource::Pipeline(_, _) => panic!("{} is not a buffer but a pipeline", texture_name),
+        match self.resources.get(texture_name) {
+            Some(GpuResource::Buffer(_)) => panic!("{} is not a texture but a buffer", texture_name),
+            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a buffer but a pipeline", texture_name),
+            None => panic!("resource does not exist: {}", texture_name),
+            Some(GpuResource::Texture(_, _, _, tex)) => {
+                let mut encoder = self.get_encoder();
+
+                let bytes_per_row = max(1, (image_size.0 * std::mem::size_of::<T>() as u32) / 256) * 256;
+                let rows_per_image = image_size.1;
+
+                encoder.copy_buffer_to_texture(
+                    ImageCopyBuffer {
+                        buffer: &uploading_buffer,
+                        layout: ImageDataLayout {
+                            offset: 0,
+                            bytes_per_row: Some(NonZeroU32::new(bytes_per_row).unwrap_or_else(|| panic!("impossible image width: {}", image_size.0))),
+                            rows_per_image: Some(NonZeroU32::new(rows_per_image).unwrap_or_else(|| panic!("impossible image height: {}", image_size.1))),
+                        },
+                    },
+                    ImageCopyTexture {
+                        texture: tex,
+                        mip_level: 0,
+                        origin: Default::default(),
+                        aspect: Default::default(),
+                    },
+                    Extent3d {
+                        width: image_size.0,
+                        height: image_size.1,
+                        depth_or_array_layers: image_size.2,
+                    },
+                );
+                self.queue.submit(std::iter::once(encoder.finish()));
+            }
         };
-
-        let mut encoder = self.get_encoder();
-
-        let bytes_per_row = max(1, (image_size.0 * std::mem::size_of::<T>() as u32) / 256) * 256;
-        let rows_per_image = image_size.1;
-
-        encoder.copy_buffer_to_texture(
-            ImageCopyBuffer {
-                buffer: &uploading_buffer,
-                layout: ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(NonZeroU32::new(bytes_per_row).unwrap_or_else(|| panic!("impossible image width: {}", image_size.0))),
-                    rows_per_image: Some(NonZeroU32::new(rows_per_image).unwrap_or_else(|| panic!("impossible image height: {}", image_size.1))),
-                },
-            },
-            ImageCopyTexture {
-                texture,
-                mip_level: 0,
-                origin: Default::default(),
-                aspect: Default::default(),
-            },
-            Extent3d {
-                width: image_size.0,
-                height: image_size.1,
-                depth_or_array_layers: image_size.2,
-            },
-        );
-        self.queue.submit(std::iter::once(encoder.finish()));
     }
 
     pub fn log_state(&self) {

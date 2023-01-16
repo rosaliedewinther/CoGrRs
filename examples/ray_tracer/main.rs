@@ -64,18 +64,8 @@ impl Game for RayTracer {
         gpu_context.buffer::<[Point; 4]>("triangles_block", bvh.triangles.len() as u32);
         gpu_context.buffer::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.len() as u32);
 
-        gpu_context.set_buffer_data(
-            "triangles_block",
-            bvh.triangles.as_slice(),
-            std::mem::size_of::<[Point; 4]>() * bvh.triangles.len(),
-            0,
-        );
-        gpu_context.set_buffer_data(
-            "bvh_nodes_block",
-            bvh.bvh_nodes.as_slice(),
-            std::mem::size_of::<BVHNode>() * bvh.bvh_nodes.len(),
-            0,
-        );
+        gpu_context.set_buffer_data::<[Point; 4]>("triangles_block", bvh.triangles.as_slice(), bvh.triangles.len(), 0);
+        gpu_context.set_buffer_data::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.as_slice(), bvh.bvh_nodes.len(), 0);
 
         RayTracer {
             gpu_context,
