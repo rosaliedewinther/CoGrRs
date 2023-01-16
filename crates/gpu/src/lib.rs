@@ -198,8 +198,7 @@ impl Context {
         execution_mode: Execution,
         encoder: &mut CommandEncoder,
         push_constants: &PushConstants,
-    ) -> &Self
-    where
+    ) where
         PushConstants: bytemuck::Pod,
     {
         loop {
@@ -222,7 +221,6 @@ impl Context {
                 },
             }
         }
-        self
     }
 
     fn init_pipeline(&mut self, shader_name: &str) -> Result<(), Vec<PipelineCreationError>> {
@@ -292,12 +290,7 @@ impl Context {
             None => {
                 self.resources.insert(
                     buffer_name.to_string(),
-                    GpuResource::Buffer(init_storage_buffer(
-                        self,
-                        buffer_name,
-                        number_of_elements * std::mem::size_of::<Type>() as u32,
-                        true,
-                    )),
+                    GpuResource::Buffer(init_storage_buffer(self, buffer_name, number_of_elements * std::mem::size_of::<Type>() as u32)),
                 );
             }
         }
