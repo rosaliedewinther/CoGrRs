@@ -42,26 +42,20 @@ impl MainGui {
     pub fn new(gpu_context: &Context, window: &winit::window::Window) -> Self {
         let mut imgui = imgui::Context::create();
         let mut platform = imgui_winit_support::WinitPlatform::init(&mut imgui);
-        platform.attach_window(
-            imgui.io_mut(),
-            window,
-            imgui_winit_support::HiDpiMode::Default,
-        );
+        platform.attach_window(imgui.io_mut(), window, imgui_winit_support::HiDpiMode::Default);
         imgui.set_ini_filename(None);
 
         let font_size = (13.0 * window.scale_factor()) as f32;
         imgui.io_mut().font_global_scale = (1.0 / window.scale_factor()) as f32;
 
-        imgui
-            .fonts()
-            .add_font(&[imgui::FontSource::DefaultFontData {
-                config: Some(imgui::FontConfig {
-                    oversample_h: 1,
-                    pixel_snap_h: true,
-                    size_pixels: font_size,
-                    ..Default::default()
-                }),
-            }]);
+        imgui.fonts().add_font(&[imgui::FontSource::DefaultFontData {
+            config: Some(imgui::FontConfig {
+                oversample_h: 1,
+                pixel_snap_h: true,
+                size_pixels: font_size,
+                ..Default::default()
+            }),
+        }]);
 
         //
         // Set up dear imgui wgpu renderer
@@ -72,12 +66,7 @@ impl MainGui {
             ..Default::default()
         };
 
-        let renderer = imgui_wgpu::Renderer::new(
-            &mut imgui,
-            &gpu_context.device,
-            &gpu_context.queue,
-            renderer_config,
-        );
+        let renderer = imgui_wgpu::Renderer::new(&mut imgui, &gpu_context.device, &gpu_context.queue, renderer_config);
         Self {
             imgui,
             renderer,
@@ -100,9 +89,7 @@ impl MainGui {
     ) {
         self.imgui.io_mut().mouse_pos = mouse_pos;
         self.imgui.io_mut().mouse_down[0] = mouse_button_down;
-        self.imgui
-            .io_mut()
-            .update_delta_time(Duration::from_secs_f32(0.01f32));
+        self.imgui.io_mut().update_delta_time(Duration::from_secs_f32(0.01f32));
 
         let ui = self.imgui.frame();
 
@@ -119,13 +106,7 @@ impl MainGui {
                         *toggle = ui.button(toggle_name);
                     }
                     for (slider_name, sliderdata) in &mut self.slider {
-                        imgui::Ui::slider(
-                            ui,
-                            slider_name,
-                            sliderdata.min,
-                            sliderdata.max,
-                            &mut sliderdata.current,
-                        );
+                        imgui::Ui::slider(ui, slider_name, sliderdata.min, sliderdata.max, &mut sliderdata.current);
                     }
                     for (metric_name, metric) in &self.performance_metric {
                         ui.text(format!(
@@ -152,7 +133,10 @@ impl MainGui {
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("ui_render_pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: gpu_context.surface_texture_view.as_ref().expect("surface texture view is not available, be sure to call get_encoder_for_draw() before trying to render ui"),
+                view: gpu_context
+                    .surface_texture_view
+                    .as_ref()
+                    .expect("surface texture view is not available, be sure to call get_encoder_for_draw() before trying to render ui"),
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
@@ -164,12 +148,7 @@ impl MainGui {
 
         self.platform.prepare_render(ui, window);
         self.renderer
-            .render(
-                imgui::Context::render(&mut self.imgui),
-                &gpu_context.queue,
-                &gpu_context.device,
-                &mut rpass,
-            )
+            .render(imgui::Context::render(&mut self.imgui), &gpu_context.queue, &gpu_context.device, &mut rpass)
             .expect("Rendering failed");
     }
     pub fn slider(&mut self, name: &str, min_val: f32, max_val: f32, value: &mut f32) {
@@ -216,15 +195,12 @@ impl MainGui {
             debug_assert!(value.0 < items.len());
             value.1[value.0].clone()
         } else {
-            self.combos.insert(
-                combo_name.to_string(),
-                (0, items.iter().map(|val| val.to_string()).collect()),
-            );
+            self.combos
+                .insert(combo_name.to_string(), (0, items.iter().map(|val| val.to_string()).collect()));
             let selected = &self
                 .combos
                 .get(combo_name)
-                .unwrap_or_else(|| panic!("Somehow combobox {} did not get added ",
-                    combo_name))
+                .unwrap_or_else(|| panic!("Somehow combobox {} did not get added ", combo_name))
                 .1[0];
             selected.to_string()
         }
@@ -232,16 +208,14 @@ impl MainGui {
     pub fn metric(&mut self, graph_name: &str, size: usize, val: f32) {
         match self.performance_metric.get_mut(graph_name) {
             None => {
-                self.performance_metric
-                    .insert(graph_name.to_string(), MetricData::new(size));
+                self.performance_metric.insert(graph_name.to_string(), MetricData::new(size));
             }
             Some(metric_data) => {
                 if metric_data.handled_indices == 0 {
                     metric_data.rolling_average = val;
                 } else {
-                    metric_data.rolling_average = (1f32 / metric_data.values.len() as f32) * val
-                        + (1f32 - 1f32 / metric_data.values.len() as f32)
-                            * metric_data.rolling_average;
+                    metric_data.rolling_average =
+                        (1f32 / metric_data.values.len() as f32) * val + (1f32 - 1f32 / metric_data.values.len() as f32) * metric_data.rolling_average;
                 }
 
                 // set min/max indices on new val
@@ -274,10 +248,7 @@ impl MainGui {
                 }
 
                 metric_data.current_index += 1;
-                metric_data.handled_indices = max(
-                    metric_data.handled_indices,
-                    metric_data.current_index as i32,
-                );
+                metric_data.handled_indices = max(metric_data.handled_indices, metric_data.current_index as i32);
                 // make sure to wrap around when needed
                 if metric_data.current_index == metric_data.values.len() {
                     metric_data.current_index = 0;

@@ -178,7 +178,7 @@ impl RayTracer {
             })
             .collect_into_vec(&mut self.screen_buffer);
 
-        self.gpu_context.set_texture_data("depth", self.screen_buffer.as_slice(), (WIDTH, HEIGHT, 1));
+        self.gpu_context.set_texture_data("depth", self.screen_buffer.as_slice());
         let mut encoder = self.gpu_context.get_encoder();
 
         self.gpu_context.dispatch_pipeline("draw", PerPixel2D, &mut encoder, &[0; 0]);

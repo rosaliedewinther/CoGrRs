@@ -30,7 +30,7 @@ pub fn init_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: texture_dimension,
-        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
+        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
     });
     let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
         label: Some(&(texture_name.to_string() + "_view")),
