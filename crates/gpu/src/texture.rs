@@ -1,27 +1,25 @@
 use crate::Context;
 
-pub fn init_texture(
-    gpu_context: &Context,
-    texture_name: &str,
-    width: u32,
-    height: u32,
-    depth: Option<u32>,
-    format: wgpu::TextureFormat,
-) -> (wgpu::Texture, wgpu::TextureView) {
+pub fn init_texture(gpu_context: &Context, texture_name: &str, dims: (u32, u32, u32), format: wgpu::TextureFormat) -> (wgpu::Texture, wgpu::TextureView) {
+    if dims.0 == 0 || dims.1 == 0 || dims.2 == 0 {
+        panic!(
+            "dim size of texture: {} was incorrect namely: {:?}, every dimension must be at least 1",
+            texture_name, dims
+        )
+    }
+
     let texture_size = wgpu::Extent3d {
-        width,
-        height,
-        depth_or_array_layers: depth.unwrap_or(1),
+        width: dims.0,
+        height: dims.1,
+        depth_or_array_layers: dims.2,
     };
-    let texture_dimension = match depth {
-        Some(0 | 1) => wgpu::TextureDimension::D2,
-        Some(_) => wgpu::TextureDimension::D3,
-        None => wgpu::TextureDimension::D2,
+    let texture_dimension = match dims.2 {
+        1 => wgpu::TextureDimension::D2,
+        _ => wgpu::TextureDimension::D3,
     };
-    let texture_view_dimension = match depth {
-        Some(0 | 1) => wgpu::TextureViewDimension::D2,
-        Some(_) => wgpu::TextureViewDimension::D3,
-        None => wgpu::TextureViewDimension::D2,
+    let texture_view_dimension = match dims.2 {
+        1 => wgpu::TextureViewDimension::D2,
+        _ => wgpu::TextureViewDimension::D3,
     };
     let texture = gpu_context.device.create_texture(&wgpu::TextureDescriptor {
         label: Some(texture_name),

@@ -8,8 +8,8 @@ mod texture;
 mod to_screen_pipeline;
 
 use crate::compute_pipeline::ComputePipeline;
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::{cmp::max, collections::HashMap, num::NonZeroU32};
 
 use bytemuck::{Pod, Zeroable};
 use wgpu::TextureFormat::Bgra8Unorm;
@@ -17,7 +17,7 @@ use wgpu::TextureFormat::Rgba8Unorm;
 
 use log::{info, warn};
 
-use wgpu::{util::DeviceExt, CommandEncoder, Extent3d, ImageCopyBuffer, ImageCopyTexture, ImageDataLayout, TextureViewDimension};
+use wgpu::{util::DeviceExt, CommandEncoder, Extent3d, ImageCopyTexture, TextureViewDimension};
 
 use wgpu::IndexFormat::Uint16;
 
@@ -39,7 +39,7 @@ impl Debug for GpuResource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Buffer(arg0) => f.debug_tuple("Buffer").field(arg0).finish(),
-            Self::Texture(arg0, arg1, arg2, arg3, arg4) => f.debug_tuple("Texture").field(arg0).field(arg1).field(arg2).field(arg3).finish(),
+            Self::Texture(arg0, arg1, arg2, arg3, arg4) => f.debug_tuple("Texture").field(arg0).field(arg1).field(arg2).field(arg3).field(arg4).finish(),
             Self::Pipeline(arg0, arg1) => f.debug_tuple("Pipeline").field(arg0).field(arg1).finish(),
         }
     }
@@ -307,18 +307,7 @@ impl Context {
             Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a texture but a buffer", texture_name),
             Some(GpuResource::Texture(_, _, _, _, _)) => warn!("texture {} already exists", texture_name),
             None => {
-                let (texture, texture_view) = init_texture(
-                    self,
-                    texture_name,
-                    number_of_elements.0,
-                    number_of_elements.1,
-                    match number_of_elements.2 {
-                        0 => None,
-                        1 => None,
-                        _ => Some(number_of_elements.2),
-                    },
-                    format,
-                );
+                let (texture, texture_view) = init_texture(self, texture_name, number_of_elements, format);
 
                 self.resources.insert(
                     texture_name.to_string(),
@@ -450,7 +439,7 @@ impl Context {
                     );
                 }
 
-                let (texture, _) = init_texture(self, "copy_texture", size.0, size.1, Some(size.2), *format);
+                let (texture, _) = init_texture(self, "copy_texture", *size, *format);
                 encoder.copy_texture_to_texture(
                     ImageCopyTexture {
                         texture: &texture,
@@ -459,7 +448,7 @@ impl Context {
                         aspect: Default::default(),
                     },
                     ImageCopyTexture {
-                        texture: &tex,
+                        texture: tex,
                         mip_level: 0,
                         origin: Default::default(),
                         aspect: Default::default(),

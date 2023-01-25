@@ -482,7 +482,7 @@ impl Bvh {
         let inv_det = 1.0 / det;
         let a_to_origin = ray.o - *a;
         let u = dot(a_to_origin, u_vec) * inv_det;
-        if (u > 1f32) | (u < 0f32) {
+        if !(0f32..=1f32).contains(&u) {
             return;
         }
         let v_vec = cross(a_to_origin, a_to_b);
