@@ -260,53 +260,6 @@ impl Bvh {
         }
     }
 
-    pub fn get_bvh_statistics(&self, node_width: u32) -> String {
-        format!(
-            "max depth: {}\ntotal_area: {}\ntotal_internal_nodes: {}\ntriangle_count: {}",
-            self.get_max_depth(0, 0, node_width),
-            self.get_total_area(0, node_width),
-            self.total_internal_nodes(0, node_width),
-            self.triangles.len(),
-        )
-    }
-
-    pub fn get_max_depth(&self, node_id: u32, depth: u32, width: u32) -> u32 {
-        if self.bvh_nodes[node_id as usize].count > 0 || self.bvh_nodes[node_id as usize].left_first == 0 {
-            return depth;
-        }
-        let mut global_max = 0;
-        let left = self.bvh_nodes[node_id as usize].left_first;
-        for i in 0..width {
-            global_max = max(global_max, self.get_max_depth(left as u32 + i, depth + 1, width));
-        }
-        global_max
-    }
-    pub fn get_total_area(&self, node_id: u32, width: u32) -> f64 {
-        let node = &self.bvh_nodes[node_id as usize];
-        let mut area = Self::get_area(node.maxx, node.maxy, node.maxz, node.minx, node.miny, node.minz) as f64;
-        if self.bvh_nodes[node_id as usize].count > 0 || self.bvh_nodes[node_id as usize].left_first == 0 {
-            return area;
-        }
-        let left = self.bvh_nodes[node_id as usize].left_first;
-        for i in 0..width {
-            area += self.get_total_area(left as u32 + i, width);
-        }
-
-        area
-    }
-    pub fn total_internal_nodes(&self, node_id: u32, width: u32) -> u32 {
-        if self.bvh_nodes[node_id as usize].count > 0 || self.bvh_nodes[node_id as usize].left_first == 0 {
-            return 0;
-        }
-        let left = self.bvh_nodes[node_id as usize].left_first;
-        let mut count = 1;
-        for i in 0..width {
-            count += self.total_internal_nodes(left as u32 + i, width);
-        }
-
-        count
-    }
-
     pub fn build_bvh(&mut self) {
         self.centroids = self.triangles.iter().map(|t| (t[0] + t[1] + t[2]) / 3f32).collect();
 

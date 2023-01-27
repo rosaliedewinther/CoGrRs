@@ -1,6 +1,18 @@
+use bytemuck::Pod;
+use wgpu::util::DeviceExt;
+
 use crate::Context;
 
-pub fn init_texture(gpu_context: &Context, texture_name: &str, dims: (u32, u32, u32), format: wgpu::TextureFormat) -> (wgpu::Texture, wgpu::TextureView) {
+pub fn init_texture<T>(
+    gpu_context: &Context,
+    texture_name: &str,
+    dims: (u32, u32, u32),
+    format: wgpu::TextureFormat,
+    data: Option<&[T]>,
+) -> (wgpu::Texture, wgpu::TextureView)
+where
+    T: Pod,
+{
     if dims.0 == 0 || dims.1 == 0 || dims.2 == 0 {
         panic!(
             "dim size of texture: {} was incorrect namely: {:?}, every dimension must be at least 1",
@@ -21,15 +33,32 @@ pub fn init_texture(gpu_context: &Context, texture_name: &str, dims: (u32, u32, 
         1 => wgpu::TextureViewDimension::D2,
         _ => wgpu::TextureViewDimension::D3,
     };
-    let texture = gpu_context.device.create_texture(&wgpu::TextureDescriptor {
-        label: Some(texture_name),
-        format,
-        size: texture_size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: texture_dimension,
-        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
-    });
+
+    let texture = match data {
+        Some(data) => gpu_context.device.create_texture_with_data(
+            &gpu_context.queue,
+            &wgpu::TextureDescriptor {
+                label: Some(texture_name),
+                format,
+                size: texture_size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: texture_dimension,
+                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
+            },
+            bytemuck::cast_slice(data),
+        ),
+        None => gpu_context.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(texture_name),
+            format,
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: texture_dimension,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
+        }),
+    };
+
     let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
         label: Some(&(texture_name.to_string() + "_view")),
         format: Some(format),

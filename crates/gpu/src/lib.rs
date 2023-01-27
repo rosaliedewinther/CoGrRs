@@ -307,7 +307,7 @@ impl Context {
             Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a texture but a buffer", texture_name),
             Some(GpuResource::Texture(_, _, _, _, _)) => warn!("texture {} already exists", texture_name),
             None => {
-                let (texture, texture_view) = init_texture(self, texture_name, number_of_elements, format);
+                let (texture, texture_view) = init_texture::<()>(self, texture_name, number_of_elements, format, None);
 
                 self.resources.insert(
                     texture_name.to_string(),
@@ -439,7 +439,7 @@ impl Context {
                     );
                 }
 
-                let (texture, _) = init_texture(self, "copy_texture", *size, *format);
+                let (texture, _) = init_texture(self, "copy_texture", *size, *format, Some(data));
                 encoder.copy_texture_to_texture(
                     ImageCopyTexture {
                         texture: &texture,
