@@ -1,6 +1,6 @@
 use gpu::Context;
+use std::fmt::Display;
 use std::{cmp::max, time::Duration};
-
 struct SliderData<T> {
     min: T,
     max: T,
@@ -25,6 +25,10 @@ impl MetricData {
             rolling_average: 0f32,
         }
     }
+}
+
+pub trait Comboboxable: Display + Copy {
+    fn get_variants() -> Vec<Self>;
 }
 
 pub struct MainGui {
@@ -189,20 +193,18 @@ impl MainGui {
     pub fn text(&mut self, entry_name: &str, text: &str) {
         self.texts.insert(entry_name.to_string(), text.to_string());
     }
-    pub fn combobox(&mut self, combo_name: &str, items: Vec<&str>) -> String {
-        if let Some(value) = self.combos.get(combo_name) {
-            debug_assert!(items.len() == value.1.len());
-            debug_assert!(value.0 < items.len());
-            value.1[value.0].clone()
-        } else {
-            self.combos
-                .insert(combo_name.to_string(), (0, items.iter().map(|val| val.to_string()).collect()));
-            let selected = &self
-                .combos
-                .get(combo_name)
-                .unwrap_or_else(|| panic!("Somehow combobox {} did not get added ", combo_name))
-                .1[0];
-            selected.to_string()
+    pub fn combobox<Enum>(&mut self, combo_name: &str, item: &mut Enum)
+    where
+        Enum: Comboboxable + 'static,
+    {
+        match self.combos.get(combo_name) {
+            Some(value) => {
+                *item = Enum::get_variants()[value.0];
+            }
+            None => {
+                self.combos
+                    .insert(combo_name.to_string(), (0, Enum::get_variants().iter().map(|val| val.to_string()).collect()));
+            }
         }
     }
     pub fn metric(&mut self, graph_name: &str, size: usize, val: f32) {

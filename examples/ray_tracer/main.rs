@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::bvh::{cross, dot, BVHNode, Ray};
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
@@ -5,7 +7,7 @@ use gpu::wgpu::TextureFormat::Rgba8Uint;
 use gpu::Context;
 use gpu::Execution::PerPixel2D;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use ui::MainGui;
+use ui::{Comboboxable, MainGui};
 use window::{
     input::{button::ButtonState, Input},
     main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
@@ -14,7 +16,7 @@ use window::{
 
 mod bvh;
 
-pub struct RayTracer {
+struct RayTracer {
     pub gpu_context: Context,
     pub ui: MainGui,
     pub bvh: Bvh,
@@ -22,7 +24,7 @@ pub struct RayTracer {
     pub distance: f32,
     pub screen_buffer: Vec<[u8; 4]>,
     pub frame_number: u32,
-    pub render_on_gpu: bool,
+    pub render_mode: RenderMode,
 }
 
 #[repr(C)]
@@ -40,6 +42,25 @@ struct CameraData {
     padding1: u32,
     padding2: u32,
     padding3: u32,
+}
+#[derive(Copy, Clone)]
+enum RenderMode {
+    Gpu,
+    Cpu,
+}
+impl Display for RenderMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RenderMode::Gpu => f.write_str("Gpu"),
+            RenderMode::Cpu => f.write_str("Cpu"),
+        }
+    }
+}
+
+impl Comboboxable for RenderMode {
+    fn get_variants() -> Vec<Self> {
+        vec![RenderMode::Gpu, RenderMode::Cpu]
+    }
 }
 
 const WIDTH: u32 = 1280;
@@ -75,7 +96,7 @@ impl Game for RayTracer {
             distance: -1f32,
             screen_buffer,
             frame_number: 0,
-            render_on_gpu: true,
+            render_mode: RenderMode::Gpu,
         }
     }
 
@@ -105,10 +126,9 @@ impl Game for RayTracer {
             padding3: 0,
         };
 
-        if self.render_on_gpu {
-            self.render_gpu(&camera_data);
-        } else {
-            self.render_cpu(&camera_data)
+        match self.render_mode {
+            RenderMode::Gpu => self.render_gpu(&camera_data),
+            RenderMode::Cpu => self.render_cpu(&camera_data),
         }
 
         let mut encoder = self.gpu_context.get_encoder_for_draw();
@@ -117,7 +137,7 @@ impl Game for RayTracer {
 
         self.ui.text("fps", &(1f32 / dt).to_string());
 
-        self.render_on_gpu = self.ui.combobox("gpu_rendering", vec!["GPU", "CPU"]) == "GPU";
+        self.ui.combobox("rendering_mode", &mut self.render_mode);
 
         self.ui.draw(
             &self.gpu_context,
