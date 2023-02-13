@@ -465,6 +465,11 @@ impl Context {
         };
     }
 
+    pub fn delete_all_pipelines(&mut self) {
+        self.resources
+            .retain(|_, elem| if let GpuResource::Pipeline(_, _) = elem { false } else { true });
+    }
+
     pub fn log_state(&self) {
         info!("gpu resource state:");
         for (key, val) in &self.resources {
