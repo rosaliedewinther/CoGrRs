@@ -1,14 +1,14 @@
 use gpu::Context;
-use ui::MainGui;
+use ui::UI;
 use window::{
-    input::{button::ButtonState, Input},
+    input::{Input},
     main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
     winit::window::Window,
 };
 
 pub struct HelloWorld {
     pub gpu_context: Context,
-    pub ui: MainGui,
+    pub ui: ui::imgui::MainGui,
 }
 
 impl Game for HelloWorld {
@@ -17,25 +17,18 @@ impl Game for HelloWorld {
 
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
 
-        let ui = MainGui::new(&gpu_context, window);
+        let ui = ui::imgui::MainGui::new(&gpu_context, window);
 
         HelloWorld { gpu_context, ui }
     }
 
-    fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult {
+    fn on_render(&mut self, _input: &mut Input, dt: f32, window: &Window) -> RenderResult {
         let mut encoder = self.gpu_context.get_encoder_for_draw();
 
         self.ui.text("fps", &(1f32 / dt).to_string());
 
-        self.ui.draw(
-            &self.gpu_context,
-            &mut encoder,
-            window,
-            input.mouse_state.mouse_location,
-            input.mouse_state.get_left_button() == ButtonState::Pressed,
-        );
+        self.ui.draw(&mut encoder, window);
 
-        self.gpu_context.execute_encoder(encoder);
         RenderResult::Continue
     }
 

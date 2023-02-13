@@ -2,7 +2,6 @@ use bytemuck::{Pod, Zeroable};
 use core::panic;
 use std::fmt::Debug;
 use std::{
-    cmp::max,
     fs::File,
     io::{BufRead, BufReader},
     ops::{Add, Div, Mul, Sub},

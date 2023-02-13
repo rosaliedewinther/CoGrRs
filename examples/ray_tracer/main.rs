@@ -7,9 +7,10 @@ use gpu::wgpu::TextureFormat::Rgba8Uint;
 use gpu::Context;
 use gpu::Execution::PerPixel2D;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use ui::{Comboboxable, MainGui};
+use ui::ComboBoxable;
+use ui::{imgui::MainGui, UI};
 use window::{
-    input::{button::ButtonState, Input},
+    input::{Input},
     main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
     winit::window::Window,
 };
@@ -57,9 +58,13 @@ impl Display for RenderMode {
     }
 }
 
-impl Comboboxable for RenderMode {
-    fn get_variants() -> Vec<Self> {
-        vec![RenderMode::Gpu, RenderMode::Cpu]
+impl ComboBoxable for RenderMode {
+    fn get_names() -> &'static [&'static str] {
+        &["Gpu", "Cpu"]
+    }
+
+    fn get_variant(index: usize) -> Self {
+        vec![RenderMode::Gpu, RenderMode::Cpu][index]
     }
 }
 
@@ -130,24 +135,14 @@ impl Game for RayTracer {
             RenderMode::Gpu => self.render_gpu(&camera_data),
             RenderMode::Cpu => self.render_cpu(&camera_data),
         }
+        {
+            let mut encoder = self.gpu_context.get_encoder_for_draw();
+            Context::image_buffer_to_screen(&mut encoder);
+            self.ui.text("fps", &(1f32 / dt).to_string());
+            self.ui.combobox("rendering_mode", &mut self.render_mode);
+            self.ui.draw(&mut encoder, window);
+        }
 
-        let mut encoder = self.gpu_context.get_encoder_for_draw();
-
-        self.gpu_context.image_buffer_to_screen(&mut encoder);
-
-        self.ui.text("fps", &(1f32 / dt).to_string());
-
-        self.ui.combobox("rendering_mode", &mut self.render_mode);
-
-        self.ui.draw(
-            &self.gpu_context,
-            &mut encoder,
-            window,
-            input.mouse_state.mouse_location,
-            input.mouse_state.get_left_button() == ButtonState::Pressed,
-        );
-
-        self.gpu_context.execute_encoder(encoder);
         RenderResult::Continue
     }
 
@@ -201,13 +196,15 @@ impl RayTracer {
         self.gpu_context.set_texture_data("depth", self.screen_buffer.as_slice());
         let mut encoder = self.gpu_context.get_encoder();
 
-        self.gpu_context.dispatch_pipeline("draw", PerPixel2D, &mut encoder, &[0; 0]);
-        self.gpu_context.execute_encoder(encoder);
+        encoder
+            .gpu_context
+            .dispatch_pipeline("draw", PerPixel2D, encoder.encoder.as_mut().unwrap(), &[0; 0]);
     }
     fn render_gpu(&mut self, camera_data: &CameraData) {
         let mut encoder = self.gpu_context.get_encoder();
-        self.gpu_context.dispatch_pipeline("trace", PerPixel2D, &mut encoder, camera_data);
-        self.gpu_context.execute_encoder(encoder);
+        encoder
+            .gpu_context
+            .dispatch_pipeline("trace", PerPixel2D, encoder.encoder.as_mut().unwrap(), camera_data);
     }
 }
 

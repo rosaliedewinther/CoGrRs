@@ -1,6 +1,8 @@
+use auto_encoder::AutoEncoder;
 use shader::Shader;
 pub use wgpu;
 
+pub mod auto_encoder;
 mod buffer;
 mod compute_pipeline;
 mod shader;
@@ -10,6 +12,7 @@ mod to_screen_pipeline;
 use crate::compute_pipeline::ComputePipeline;
 use std::collections::HashMap;
 use std::fmt::Debug;
+
 
 use bytemuck::{Pod, Zeroable};
 use wgpu::TextureFormat::Bgra8Unorm;
@@ -67,8 +70,6 @@ pub struct Context {
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
     pub size: (u32, u32),
-    pub surface_texture: Option<wgpu::SurfaceTexture>,
-    pub surface_texture_view: Option<wgpu::TextureView>,
     to_screen_texture_name: String,
     pub to_screen_pipeline: Option<ToScreenPipeline>,
     resources: HashMap<String, GpuResource>,
@@ -127,29 +128,21 @@ impl Context {
             queue,
             config,
             size: (window.inner_size().width, window.inner_size().height),
-            surface_texture: None,
-            surface_texture_view: None,
             to_screen_texture_name: to_screen_texture_name.to_string(),
             to_screen_pipeline: None,
             resources: Default::default(),
             shaders_folder: shaders_folder.to_string(),
         }
     }
-    pub fn get_encoder_for_draw(&mut self) -> wgpu::CommandEncoder {
-        self.surface_texture = Some(self.surface.get_current_texture().expect("can't get new surface texture"));
+    pub fn get_encoder_for_draw(&mut self) -> AutoEncoder {
+        let surface_texture = self.surface.get_current_texture().expect("can't get new surface texture");
 
         let texture_view_config = wgpu::TextureViewDescriptor {
             format: Some(self.config.format),
             ..Default::default()
         };
 
-        self.surface_texture_view = Some(
-            self.surface_texture
-                .as_ref()
-                .expect("surface texture is not stored properly")
-                .texture
-                .create_view(&texture_view_config),
-        );
+        let surface_texture_view = surface_texture.texture.create_view(&texture_view_config);
 
         if self.to_screen_pipeline.is_none() {
             self.to_screen_pipeline = Some(ToScreenPipeline::new(
@@ -158,46 +151,18 @@ impl Context {
                 self.config.format,
             ));
         }
-        self.device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") })
+        let encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
+        AutoEncoder::new(encoder, self, Some(surface_texture), Some(surface_texture_view))
     }
-    pub fn get_encoder(&self) -> wgpu::CommandEncoder {
-        self.device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") })
-    }
-
-    pub fn image_buffer_to_screen(&self, encoder: &mut wgpu::CommandEncoder) {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: self.surface_texture_view.as_ref().expect("there is no surface texture"),
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            })],
-            depth_stencil_attachment: None,
-        });
-        match &self.to_screen_pipeline {
-            Some(pipeline) => {
-                render_pass.set_pipeline(&pipeline.pipeline); // 2.
-                render_pass.set_bind_group(0, &pipeline.bindgroup, &[]);
-                render_pass.set_index_buffer(pipeline.index_buffer.slice(..), Uint16);
-                render_pass.draw_indexed(0..pipeline.num_indices, 0, 0..1);
-            }
-            None => panic!("to_screen_pipeline is not available"),
-        }
+    pub fn get_encoder(&mut self) -> AutoEncoder {
+        let encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
+        AutoEncoder::new(encoder, self, None, None)
     }
 
-    pub fn execute_encoder(&mut self, encoder: wgpu::CommandEncoder) {
-        // submit will accept anything that implements IntoIter
-        self.queue.submit(std::iter::once(encoder.finish()));
-        if self.surface_texture.is_some() {
-            let surface = std::mem::replace(&mut self.surface_texture, None);
-            surface.expect("unable to present surface").present();
-        }
-    }
     pub fn dispatch_pipeline<PushConstants>(
         &mut self,
         pipeline_name: &str,
@@ -226,6 +191,30 @@ impl Context {
                     Err(error) => panic!("{:?}", error),
                 },
             }
+        }
+    }
+
+    pub fn image_buffer_to_screen(encoder: &mut AutoEncoder) {
+        let mut render_pass = encoder.encoder.as_mut().unwrap().begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: encoder.surface_texture_view.as_ref().expect("there is no surface texture"),
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
+        match &encoder.gpu_context.to_screen_pipeline {
+            Some(pipeline) => {
+                render_pass.set_pipeline(&pipeline.pipeline); // 2.
+                render_pass.set_bind_group(0, &pipeline.bindgroup, &[]);
+                render_pass.set_index_buffer(pipeline.index_buffer.slice(..), Uint16);
+                render_pass.draw_indexed(0..pipeline.num_indices, 0, 0..1);
+            }
+            None => panic!("to_screen_pipeline is not available"),
         }
     }
 
@@ -427,7 +416,7 @@ impl Context {
             Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a buffer but a pipeline", texture_name),
             None => panic!("resource does not exist: {}", texture_name),
             Some(GpuResource::Texture(_, format, _, tex, size)) => {
-                let mut encoder = self.get_encoder();
+                let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
                 let bytes_per_pixel = format.describe().block_size;
 

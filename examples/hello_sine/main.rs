@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use gpu::Context;
 use gpu::Execution::PerPixel2D;
-use ui::MainGui;
+use ui::{imgui::MainGui, UI};
 use window::{
     input::Input,
     main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
@@ -36,10 +36,11 @@ impl Game for HelloSine {
 
         self.time += dt;
         let gpu_data = GpuData { time: self.time };
-        self.gpu_context.dispatch_pipeline("sine", PerPixel2D, &mut encoder, &gpu_data);
-        self.gpu_context.image_buffer_to_screen(&mut encoder);
+        encoder
+            .gpu_context
+            .dispatch_pipeline("sine", PerPixel2D, encoder.encoder.as_mut().unwrap(), &gpu_data);
+        Context::image_buffer_to_screen(&mut encoder);
 
-        self.gpu_context.execute_encoder(encoder);
         RenderResult::Continue
     }
 
