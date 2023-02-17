@@ -1,6 +1,7 @@
 use std::ops::Range;
 
-use crate::Context;
+use super::CoGrWGPU;
+
 #[derive(Debug)]
 pub struct ComputePipeline {
     pub pipeline: wgpu::ComputePipeline,
@@ -20,7 +21,7 @@ pub enum TextureOrBuffer<'a> {
 
 impl ComputePipeline {
     pub fn new(
-        gpu_context: &Context,
+        gpu_context: &CoGrWGPU,
         pipeline_name: &str,
         spirv: &[u32],
         buffers: &[TextureOrBuffer], // buffer and read only flag

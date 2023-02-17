@@ -4,6 +4,8 @@ use inline_spirv_runtime::{ShaderCompilationConfig, ShaderKind};
 use regex::Regex;
 use rspirv_reflect::PushConstantInfo;
 
+use crate::wgpu_impl::Execution;
+
 pub struct Shader {
     pub config: ShaderCompilationConfig,
     pub shader: Vec<u32>,
@@ -74,5 +76,22 @@ impl Shader {
             bindings,
             push_constant_info,
         }
+    }
+}
+
+pub fn get_execution_dims(shader: &Shader, execution_mode: Execution, texture_size: (u32, u32)) -> (u32, u32, u32) {
+    match execution_mode {
+        Execution::PerPixel1D => ((texture_size.0 * texture_size.1 + shader.cg_x - 1) / shader.cg_x, 1u32, 1u32),
+        Execution::PerPixel2D => (
+            (texture_size.0 + shader.cg_x - 1) / shader.cg_x,
+            (texture_size.1 + shader.cg_y - 1) / shader.cg_y,
+            1,
+        ),
+        Execution::N3D(n) => (
+            (n + shader.cg_x - 1) / shader.cg_x,
+            (n + shader.cg_y - 1) / shader.cg_y,
+            (n + shader.cg_z - 1) / shader.cg_z,
+        ),
+        Execution::N1D(n) => ((n + shader.cg_x - 1) / shader.cg_x, 1, 1),
     }
 }

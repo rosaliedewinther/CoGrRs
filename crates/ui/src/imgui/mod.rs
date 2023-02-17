@@ -1,7 +1,5 @@
-use gpu::auto_encoder::AutoEncoder;
-use gpu::Context;
-
-use std::{cmp::max};
+use gpu::wgpu_impl::{auto_encoder::AutoEncoder, CoGrWGPU};
+use std::cmp::max;
 use winit::window::Window;
 
 use crate::{ComboBoxable, MetricData, SliderData, UI};
@@ -18,7 +16,7 @@ pub struct MainGui {
 }
 
 impl UI for MainGui {
-    fn new(gpu_context: &Context, window: &Window) -> Self {
+    fn new(gpu_context: &CoGrWGPU, window: &Window) -> Self {
         let mut imgui = imgui::Context::create();
         let mut platform = imgui_winit_support::WinitPlatform::init(&mut imgui);
         platform.attach_window(imgui.io_mut(), window, imgui_winit_support::HiDpiMode::Default);

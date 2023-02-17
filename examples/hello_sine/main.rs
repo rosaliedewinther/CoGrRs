@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
-use gpu::Context;
-use gpu::Execution::PerPixel2D;
+use gpu::wgpu_impl::Execution::PerPixel2D;
+use gpu::CoGrEncoder;
+use gpu::{wgpu_impl::CoGrWGPU, CoGr};
 use ui::{imgui::MainGui, UI};
 use window::{
     input::Input,
@@ -9,7 +10,7 @@ use window::{
 };
 
 pub struct HelloSine {
-    pub gpu_context: Context,
+    pub gpu_context: CoGrWGPU,
     pub ui: MainGui,
     pub time: f32,
 }
@@ -22,7 +23,7 @@ struct GpuData {
 
 impl Game for HelloSine {
     fn on_init(window: &Window) -> Self {
-        let mut gpu_context = Context::new(window, "to_draw_texture", "examples/hello_sine/");
+        let mut gpu_context = CoGrWGPU::new(window, "to_draw_texture", "examples/hello_sine/");
 
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
 
@@ -36,10 +37,8 @@ impl Game for HelloSine {
 
         self.time += dt;
         let gpu_data = GpuData { time: self.time };
-        encoder
-            .gpu_context
-            .dispatch_pipeline("sine", PerPixel2D, encoder.encoder.as_mut().unwrap(), &gpu_data);
-        Context::image_buffer_to_screen(&mut encoder);
+        encoder.dispatch_pipeline("sine", PerPixel2D, &gpu_data);
+        encoder.image_buffer_to_screen();
 
         RenderResult::Continue
     }

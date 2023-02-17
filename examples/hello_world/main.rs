@@ -1,19 +1,19 @@
-use gpu::Context;
+use gpu::{wgpu_impl::CoGrWGPU, CoGr};
 use ui::UI;
 use window::{
-    input::{Input},
+    input::Input,
     main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
     winit::window::Window,
 };
 
 pub struct HelloWorld {
-    pub gpu_context: Context,
+    pub gpu_context: CoGrWGPU,
     pub ui: ui::imgui::MainGui,
 }
 
 impl Game for HelloWorld {
     fn on_init(window: &Window) -> Self {
-        let mut gpu_context = Context::new(window, "to_draw_texture", "");
+        let mut gpu_context = CoGrWGPU::new(window, "to_draw_texture", "");
 
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
 

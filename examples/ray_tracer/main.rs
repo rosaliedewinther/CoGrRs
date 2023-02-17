@@ -3,14 +3,16 @@ use std::fmt::Display;
 use crate::bvh::{cross, dot, BVHNode, Ray};
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
+use gpu::wgpu_impl::Execution::PerPixel2D;
+
 use gpu::wgpu::TextureFormat::Rgba8Uint;
-use gpu::Context;
-use gpu::Execution::PerPixel2D;
+use gpu::wgpu_impl::CoGrWGPU;
+use gpu::{CoGr, CoGrEncoder};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use ui::ComboBoxable;
 use ui::{imgui::MainGui, UI};
 use window::{
-    input::{Input},
+    input::Input,
     main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
     winit::window::Window,
 };
@@ -18,7 +20,7 @@ use window::{
 mod bvh;
 
 struct RayTracer {
-    pub gpu_context: Context,
+    pub gpu_context: CoGrWGPU,
     pub ui: MainGui,
     pub bvh: Bvh,
     pub time: f32,
@@ -75,7 +77,7 @@ const HALF_HEIGHT: u32 = HEIGHT / 2;
 
 impl Game for RayTracer {
     fn on_init(window: &Window) -> Self {
-        let mut gpu_context = Context::new(window, "to_draw_texture", "examples/ray_tracer/");
+        let mut gpu_context = CoGrWGPU::new(window, "to_draw_texture", "examples/ray_tracer/");
 
         gpu_context.texture("to_draw_texture", (WIDTH, HEIGHT, 1), gpu_context.config.format);
 
@@ -90,8 +92,11 @@ impl Game for RayTracer {
         gpu_context.buffer::<[Point; 4]>("triangles_block", bvh.triangles.len() as u32);
         gpu_context.buffer::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.len() as u32);
 
-        gpu_context.set_buffer_data::<[Point; 4]>("triangles_block", bvh.triangles.as_slice(), bvh.triangles.len(), 0);
-        gpu_context.set_buffer_data::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.as_slice(), bvh.bvh_nodes.len(), 0);
+        {
+            let encoder = gpu_context.get_encoder();
+            encoder.set_buffer_data::<[Point; 4]>("triangles_block", bvh.triangles.as_slice(), bvh.triangles.len(), 0);
+            encoder.set_buffer_data::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.as_slice(), bvh.bvh_nodes.len(), 0);
+        }
 
         RayTracer {
             gpu_context,
@@ -137,7 +142,7 @@ impl Game for RayTracer {
         }
         {
             let mut encoder = self.gpu_context.get_encoder_for_draw();
-            Context::image_buffer_to_screen(&mut encoder);
+            encoder.image_buffer_to_screen();
             self.ui.text("fps", &(1f32 / dt).to_string());
             self.ui.combobox("rendering_mode", &mut self.render_mode);
             self.ui.draw(&mut encoder, window);
@@ -193,18 +198,13 @@ impl RayTracer {
             })
             .collect_into_vec(&mut self.screen_buffer);
 
-        self.gpu_context.set_texture_data("depth", self.screen_buffer.as_slice());
         let mut encoder = self.gpu_context.get_encoder();
-
-        encoder
-            .gpu_context
-            .dispatch_pipeline("draw", PerPixel2D, encoder.encoder.as_mut().unwrap(), &[0; 0]);
+        encoder.set_texture_data("depth", self.screen_buffer.as_slice());
+        encoder.dispatch_pipeline("draw", PerPixel2D, &[0; 0]);
     }
     fn render_gpu(&mut self, camera_data: &CameraData) {
         let mut encoder = self.gpu_context.get_encoder();
-        encoder
-            .gpu_context
-            .dispatch_pipeline("trace", PerPixel2D, encoder.encoder.as_mut().unwrap(), camera_data);
+        encoder.dispatch_pipeline("trace", PerPixel2D, camera_data);
     }
 }
 

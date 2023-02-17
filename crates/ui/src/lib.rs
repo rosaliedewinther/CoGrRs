@@ -1,5 +1,5 @@
-use gpu::auto_encoder::AutoEncoder;
-use gpu::Context;
+use gpu::wgpu_impl::auto_encoder::AutoEncoder;
+use gpu::wgpu_impl::CoGrWGPU;
 use winit::event::Event;
 use winit::window::Window;
 
@@ -37,7 +37,7 @@ pub trait ComboBoxable: Copy {
 }
 
 pub trait UI {
-    fn new(gpu_context: &Context, window: &Window) -> Self;
+    fn new(gpu_context: &CoGrWGPU, window: &Window) -> Self;
     fn draw(&mut self, gpu_context: &mut AutoEncoder, window: &Window);
     fn handle_event(event: Event<()>);
     fn slider(&mut self, name: &str, min_value: f32, max_val: f32, value: &mut f32);

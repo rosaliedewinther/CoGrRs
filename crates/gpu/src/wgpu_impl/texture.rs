@@ -1,10 +1,10 @@
 use bytemuck::Pod;
 use wgpu::util::DeviceExt;
 
-use crate::Context;
+use super::CoGrWGPU;
 
 pub fn init_texture<T>(
-    gpu_context: &Context,
+    gpu_context: &CoGrWGPU,
     texture_name: &str,
     dims: (u32, u32, u32),
     format: wgpu::TextureFormat,

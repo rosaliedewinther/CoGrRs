@@ -1,6 +1,6 @@
-use crate::Context;
+use super::CoGrWGPU;
 
-pub fn init_storage_buffer(gpu_context: &Context, buffer_name: &str, size: u32) -> wgpu::Buffer {
+pub fn init_storage_buffer(gpu_context: &CoGrWGPU, buffer_name: &str, size: u32) -> wgpu::Buffer {
     gpu_context.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(buffer_name),
         size: size as u64,
