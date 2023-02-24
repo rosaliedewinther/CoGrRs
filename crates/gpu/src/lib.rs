@@ -1,12 +1,9 @@
 use bytemuck::Pod;
 use shader::Execution;
 use wgpu::TextureFormat;
-use winit::{
-    event::{WindowEvent},
-    event_loop::{EventLoop},
-    window::Window,
-};
+use winit::{event::WindowEvent, event_loop::EventLoop, window::Window};
 
+pub use egui;
 pub use wgpu;
 pub mod shader;
 mod ui;
@@ -37,14 +34,8 @@ pub trait ComboBoxable: Copy {
 }
 pub trait UI {
     fn new(gpu_context: &Renderer, window: &Window, event_loop: &EventLoop<()>) -> Self;
-    fn draw(&mut self, gpu_context: &mut Encoder, window: &Window);
+    fn draw(&mut self, gpu_context: &mut Encoder, window: &Window, ui_builder: impl FnOnce(&mut egui::Ui));
     fn handle_window_event(&mut self, event: &WindowEvent);
-    fn slider(&mut self, name: &str, min_value: f32, max_val: f32, value: &mut f32);
-    fn slideri(&mut self, name: &str, min_value: i32, max_val: i32, value: &mut i32);
-    fn toggle(&mut self, name: &str, state: &mut bool);
-    fn text(&mut self, name: &str, text: &str);
-    fn combobox<Enum: ComboBoxable>(&mut self, name: &str, item: &mut Enum);
-    fn metric(&mut self, name: &str, size: u32, value: f32);
 }
 
 #[cfg(feature = "wgpu")]

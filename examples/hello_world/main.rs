@@ -21,9 +21,9 @@ impl Game for HelloWorld {
     fn on_render(&mut self, _input: &mut Input, dt: f32, window: &Window) -> RenderResult {
         let mut encoder = self.gpu_context.get_encoder_for_draw();
 
-        self.ui.text("fps", &(1f32 / dt).to_string());
-
-        self.ui.draw(&mut encoder, window);
+        self.ui.draw(&mut encoder, window, |ui| {
+            ui.label(format!("fps: {}", 1f32 / dt));
+        });
 
         RenderResult::Continue
     }

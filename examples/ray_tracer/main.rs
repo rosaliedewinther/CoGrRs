@@ -3,12 +3,13 @@ use std::fmt::Display;
 use crate::bvh::{cross, dot, BVHNode, Ray};
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
+use gpu::egui::ComboBox;
 use gpu::shader::Execution::PerPixel2D;
 
 use gpu::wgpu::TextureFormat::Rgba8Uint;
 use gpu::{CoGr, CoGrEncoder, ComboBoxable, Renderer, Ui, UI};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use window::winit::event_loop::{EventLoop};
+use window::winit::event_loop::EventLoop;
 use window::{
     input::Input,
     main_loop::{main_loop_run, Game, RenderResult},
@@ -44,7 +45,7 @@ struct CameraData {
     padding2: u32,
     padding3: u32,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 enum RenderMode {
     Gpu,
     Cpu,
@@ -141,9 +142,15 @@ impl Game for RayTracer {
         {
             let mut encoder = self.gpu_context.get_encoder_for_draw();
             encoder.image_buffer_to_screen();
-            self.ui.text("fps", &(1f32 / dt).to_string());
-            self.ui.combobox("rendering_mode", &mut self.render_mode);
-            self.ui.draw(&mut encoder, window);
+            self.ui.draw(&mut encoder, window, |ui| {
+                ui.label(format!("ms: {}", dt * 1000f32));
+                ComboBox::from_label("Render mode")
+                    .selected_text(format!("{:?}", self.render_mode))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.render_mode, RenderMode::Gpu, "GPU");
+                        ui.selectable_value(&mut self.render_mode, RenderMode::Cpu, "CPU");
+                    });
+            });
         }
 
         RenderResult::Continue

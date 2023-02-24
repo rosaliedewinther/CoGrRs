@@ -1,16 +1,12 @@
-
 use egui_wgpu::renderer::ScreenDescriptor;
 use egui_winit::State;
-use std::cmp::max;
+
 use wgpu::RenderPassDescriptor;
-use winit::{
-    event_loop::{EventLoop},
-    window::Window,
-};
+use winit::{event_loop::EventLoop, window::Window};
 
 use crate::{
     ui::{MetricData, SliderData},
-    ComboBoxable, UI,
+    UI,
 };
 
 use super::{encoder::EncoderWGPU, CoGrWGPU};
@@ -19,11 +15,6 @@ pub struct UiWGPU {
     context: egui::Context,
     renderer: egui_wgpu::Renderer,
     state: State,
-    toggles: std::collections::HashMap<String, bool>,
-    texts: std::collections::HashMap<String, String>,
-    performance_metric: std::collections::HashMap<String, MetricData>,
-    slider: std::collections::HashMap<String, SliderData<f32>>,
-    combos: std::collections::HashMap<String, (usize, &'static [&'static str])>,
 }
 
 impl UI for UiWGPU {
@@ -32,19 +23,10 @@ impl UI for UiWGPU {
         let context = egui::Context::default();
         let state = egui_winit::State::new(event_loop);
 
-        Self {
-            context,
-            renderer,
-            state,
-            toggles: Default::default(),
-            texts: Default::default(),
-            performance_metric: Default::default(),
-            slider: Default::default(),
-            combos: Default::default(),
-        }
+        Self { context, renderer, state }
     }
 
-    fn draw(&mut self, encoder: &mut EncoderWGPU, window: &winit::window::Window) {
+    fn draw(&mut self, encoder: &mut EncoderWGPU, window: &winit::window::Window, ui_builder: impl FnOnce(&mut egui::Ui)) {
         let ctx = &encoder.gpu_context;
 
         let screen_descriptor = ScreenDescriptor {
@@ -57,10 +39,7 @@ impl UI for UiWGPU {
 
         let full_output = self.context.run(self.state.take_egui_input(window), |ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
-                ui.label("Hello world!");
-                if ui.button("Click me").clicked() {
-                    // take some action here
-                }
+                ui_builder(ui);
             });
         });
 
@@ -161,107 +140,8 @@ impl UI for UiWGPU {
                 .expect("Rendering failed");
         }*/
     }
-    fn slider(&mut self, name: &str, min_val: f32, max_val: f32, value: &mut f32) {
-        debug_assert!(min_val <= max_val);
-        debug_assert!(*value >= min_val && *value <= max_val);
-
-        if let Some(slider_value) = self.slider.get(name) {
-            debug_assert!(slider_value.min == min_val);
-            debug_assert!(slider_value.max == max_val);
-            debug_assert!(slider_value.current >= min_val && slider_value.current <= max_val);
-            *value = slider_value.current;
-            //.expect(&format!("slider value {:?} was not convertible to i32", value));
-            return;
-        }
-
-        self.slider.insert(
-            name.to_string(),
-            SliderData {
-                min: min_val,
-                max: max_val,
-                current: *value,
-            },
-        );
-    }
-    // returns the new value
-    fn toggle(&mut self, name: &str, state: &mut bool) {
-        match self.toggles.get(name) {
-            Some(toggle) => *state = *toggle,
-            None => {
-                self.toggles.insert(name.to_string(), *state);
-            }
-        };
-    }
-    fn text(&mut self, entry_name: &str, text: &str) {
-        self.texts.insert(entry_name.to_string(), text.to_string());
-    }
-    fn combobox<Enum: ComboBoxable>(&mut self, combo_name: &str, item: &mut Enum) {
-        match self.combos.get(combo_name) {
-            Some(value) => {
-                *item = Enum::get_variant(value.0);
-            }
-            None => {
-                self.combos.insert(combo_name.to_string(), (0, (Enum::get_names())));
-            }
-        }
-    }
-    fn metric(&mut self, graph_name: &str, size: u32, val: f32) {
-        match self.performance_metric.get_mut(graph_name) {
-            None => {
-                self.performance_metric.insert(graph_name.to_string(), MetricData::new(size as usize));
-            }
-            Some(metric_data) => {
-                if metric_data.handled_indices == 0 {
-                    metric_data.rolling_average = val;
-                } else {
-                    metric_data.rolling_average =
-                        (1f32 / metric_data.values.len() as f32) * val + (1f32 - 1f32 / metric_data.values.len() as f32) * metric_data.rolling_average;
-                }
-
-                // set min/max indices on new val
-                if val <= metric_data.values[metric_data.min_index] {
-                    metric_data.min_index = metric_data.current_index;
-                }
-                if val >= metric_data.values[metric_data.max_index] {
-                    metric_data.max_index = metric_data.current_index;
-                }
-                // set val
-                metric_data.values[metric_data.current_index] = val;
-                //update min/max index when overwriting
-                if metric_data.min_index == metric_data.current_index {
-                    let mut min_i = 0;
-                    for i in 0..metric_data.handled_indices as usize {
-                        if metric_data.values[i] < metric_data.values[min_i] {
-                            min_i = i;
-                        }
-                    }
-                    metric_data.min_index = min_i;
-                }
-                if metric_data.max_index == metric_data.current_index {
-                    let mut max_i = 0;
-                    for i in 0..metric_data.handled_indices as usize {
-                        if metric_data.values[i] > metric_data.values[max_i] {
-                            max_i = i;
-                        }
-                    }
-                    metric_data.max_index = max_i;
-                }
-
-                metric_data.current_index += 1;
-                metric_data.handled_indices = max(metric_data.handled_indices, metric_data.current_index as i32);
-                // make sure to wrap around when needed
-                if metric_data.current_index == metric_data.values.len() {
-                    metric_data.current_index = 0;
-                }
-            }
-        };
-    }
 
     fn handle_window_event(&mut self, event: &winit::event::WindowEvent) {
         self.state.on_event(&self.context, event);
-    }
-
-    fn slideri(&mut self, _name: &str, _min_value: i32, _max_val: i32, _value: &mut i32) {
-        todo!()
     }
 }
