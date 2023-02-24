@@ -1,35 +1,34 @@
-use wgpu;
+
+use wgpu::Backends;
+use wgpu::InstanceDescriptor;
 use winit::window::Window;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
 
 
-use wgpu::TextureFormat::Bgra8Unorm;
 use wgpu::TextureFormat::Rgba8Unorm;
 
 use log::{info, warn};
 
-use wgpu::{TextureViewDimension};
-
-
+use wgpu::TextureViewDimension;
 
 use crate::shader::Shader;
 use crate::CoGr;
 
-
-use self::auto_encoder::AutoEncoder;
 use self::buffer::init_storage_buffer;
 use self::compute_pipeline::ComputePipeline;
 use self::compute_pipeline::TextureOrBuffer;
+use self::encoder::EncoderWGPU;
 use self::texture::init_texture;
 use self::to_screen_pipeline::ToScreenPipeline;
 
-pub mod auto_encoder;
 mod buffer;
 mod compute_pipeline;
+pub mod encoder;
 mod texture;
 mod to_screen_pipeline;
+pub(crate) mod ui;
 
 enum GpuResource {
     Buffer(wgpu::Buffer),
@@ -51,13 +50,6 @@ impl Debug for GpuResource {
             Self::Pipeline(arg0, arg1) => f.debug_tuple("Pipeline").field(arg0).field(arg1).finish(),
         }
     }
-}
-
-pub enum Execution {
-    PerPixel1D,
-    PerPixel2D,
-    N3D(u32),
-    N1D(u32),
 }
 
 #[derive(Debug)]
@@ -82,11 +74,14 @@ pub struct CoGrWGPU {
 }
 
 impl CoGr for CoGrWGPU {
-    type Encoder<'a> = AutoEncoder<'a>;
+    type Encoder<'a> = EncoderWGPU<'a>;
 
     fn new(window: &Window, to_screen_texture_name: &str, shaders_folder: &str) -> Self {
-        let instance = wgpu::Instance::new(wgpu::Backends::VULKAN);
-        let surface = unsafe { instance.create_surface(window) };
+        let instance = wgpu::Instance::new(InstanceDescriptor {
+            backends: Backends::VULKAN,
+            ..Default::default()
+        });
+        let surface = unsafe { instance.create_surface(window).unwrap() };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
@@ -109,14 +104,12 @@ impl CoGr for CoGrWGPU {
             None, // Trace path
         ))
         .expect("can't create device or command queue");
-        info!("supported swapchain surface formats: {:?}", surface.get_supported_formats(&adapter));
+        let formats = surface.get_capabilities(&adapter).formats;
+        info!("supported swapchain surface formats: {:?}", formats);
 
-        let surface_format = match surface.get_supported_formats(&adapter).contains(&Rgba8Unorm) {
+        let surface_format = match formats.contains(&Rgba8Unorm) {
             true => Rgba8Unorm,
-            false => match surface.get_supported_formats(&adapter).contains(&Bgra8Unorm) {
-                true => Bgra8Unorm,
-                false => panic!("neither Rgba8Unorm nor Brga8Unorm is supported"),
-            },
+            false => panic!("neither Rgba8Unorm nor Brga8Unorm is supported"),
         };
 
         let config = wgpu::SurfaceConfiguration {
@@ -126,6 +119,7 @@ impl CoGr for CoGrWGPU {
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::Immediate,
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
+            view_formats: vec![wgpu::TextureFormat::Rgba8Unorm],
         };
         surface.configure(&device, &config);
 
@@ -141,7 +135,7 @@ impl CoGr for CoGrWGPU {
             shaders_folder: shaders_folder.to_string(),
         }
     }
-    fn get_encoder_for_draw<'a>(&'a mut self) -> AutoEncoder<'a> {
+    fn get_encoder_for_draw<'a>(&'a mut self) -> EncoderWGPU<'a> {
         let surface_texture = self.surface.get_current_texture().expect("can't get new surface texture");
 
         let texture_view_config = wgpu::TextureViewDescriptor {
@@ -161,18 +155,18 @@ impl CoGr for CoGrWGPU {
         let encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
-        AutoEncoder {
+        EncoderWGPU {
             encoder: Some(encoder),
             gpu_context: self,
             surface_texture: Some(surface_texture),
             surface_texture_view: Some(surface_texture_view),
         }
     }
-    fn get_encoder<'a>(&'a mut self) -> AutoEncoder<'a> {
+    fn get_encoder<'a>(&'a mut self) -> EncoderWGPU<'a> {
         let encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
-        AutoEncoder {
+        EncoderWGPU {
             encoder: Some(encoder),
             gpu_context: self,
             surface_texture: None,

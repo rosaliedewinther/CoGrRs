@@ -1,13 +1,24 @@
-use gpu::wgpu_impl::{auto_encoder::AutoEncoder, CoGrWGPU};
+
+use egui_wgpu::renderer::ScreenDescriptor;
+use egui_winit::State;
 use std::cmp::max;
-use winit::window::Window;
+use wgpu::RenderPassDescriptor;
+use winit::{
+    event_loop::{EventLoop},
+    window::Window,
+};
 
-use crate::{ComboBoxable, MetricData, SliderData, UI};
+use crate::{
+    ui::{MetricData, SliderData},
+    ComboBoxable, UI,
+};
 
-pub struct MainGui {
-    imgui: imgui::Context,
-    renderer: imgui_wgpu::Renderer,
-    platform: imgui_winit_support::WinitPlatform,
+use super::{encoder::EncoderWGPU, CoGrWGPU};
+
+pub struct UiWGPU {
+    context: egui::Context,
+    renderer: egui_wgpu::Renderer,
+    state: State,
     toggles: std::collections::HashMap<String, bool>,
     texts: std::collections::HashMap<String, String>,
     performance_metric: std::collections::HashMap<String, MetricData>,
@@ -15,39 +26,16 @@ pub struct MainGui {
     combos: std::collections::HashMap<String, (usize, &'static [&'static str])>,
 }
 
-impl UI for MainGui {
-    fn new(gpu_context: &CoGrWGPU, window: &Window) -> Self {
-        let mut imgui = imgui::Context::create();
-        let mut platform = imgui_winit_support::WinitPlatform::init(&mut imgui);
-        platform.attach_window(imgui.io_mut(), window, imgui_winit_support::HiDpiMode::Default);
-        imgui.set_ini_filename(None);
+impl UI for UiWGPU {
+    fn new(gpu_context: &CoGrWGPU, _window: &Window, event_loop: &EventLoop<()>) -> Self {
+        let renderer = egui_wgpu::renderer::Renderer::new(&gpu_context.device, gpu_context.config.format, None, 1);
+        let context = egui::Context::default();
+        let state = egui_winit::State::new(event_loop);
 
-        let font_size = (13.0 * window.scale_factor()) as f32;
-        imgui.io_mut().font_global_scale = (1.0 / window.scale_factor()) as f32;
-
-        imgui.fonts().add_font(&[imgui::FontSource::DefaultFontData {
-            config: Some(imgui::FontConfig {
-                oversample_h: 1,
-                pixel_snap_h: true,
-                size_pixels: font_size,
-                ..Default::default()
-            }),
-        }]);
-
-        //
-        // Set up dear imgui wgpu renderer
-        //
-
-        let renderer_config = imgui_wgpu::RendererConfig {
-            texture_format: gpu_context.config.format,
-            ..Default::default()
-        };
-
-        let renderer = imgui_wgpu::Renderer::new(&mut imgui, &gpu_context.device, &gpu_context.queue, renderer_config);
         Self {
-            imgui,
+            context,
             renderer,
-            platform,
+            state,
             toggles: Default::default(),
             texts: Default::default(),
             performance_metric: Default::default(),
@@ -56,8 +44,54 @@ impl UI for MainGui {
         }
     }
 
-    fn draw(&mut self, encoder: &mut AutoEncoder, window: &winit::window::Window) {
-        let ui = self.imgui.frame();
+    fn draw(&mut self, encoder: &mut EncoderWGPU, window: &winit::window::Window) {
+        let ctx = &encoder.gpu_context;
+
+        let screen_descriptor = ScreenDescriptor {
+            size_in_pixels: [ctx.config.width, ctx.config.height],
+            pixels_per_point: 1f32,
+        };
+        // let tdelta: egui::TexturesDelta = full_output.textures_delta;
+
+        // Record all render passes.
+
+        let full_output = self.context.run(self.state.take_egui_input(window), |ctx| {
+            egui::Window::new("debug").show(ctx, |ui| {
+                ui.label("Hello world!");
+                if ui.button("Click me").clicked() {
+                    // take some action here
+                }
+            });
+        });
+
+        let paint_jobs = self.context.tessellate(full_output.shapes);
+        let tdelta = full_output.textures_delta;
+
+        {
+            for d in tdelta.set {
+                self.renderer.update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
+            }
+            self.renderer
+                .update_buffers(&ctx.device, &ctx.queue, encoder.encoder.as_mut().unwrap(), &paint_jobs, &screen_descriptor);
+            let mut render_pass = encoder.encoder.as_mut().unwrap().begin_render_pass(&RenderPassDescriptor {
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: encoder.surface_texture_view.as_ref().expect("there is no surface texture"),
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: true,
+                    },
+                })],
+                ..Default::default()
+            });
+            self.renderer.render(&mut render_pass, paint_jobs.as_slice(), &screen_descriptor);
+        }
+
+        // Redraw egui
+        // output_frame.present();
+
+        //egui_rpass.remove_textures(tdelta).expect("remove texture ok");
+        /*
 
         {
             let window = ui.window("debug window");
@@ -125,7 +159,7 @@ impl UI for MainGui {
                     &mut rpass,
                 )
                 .expect("Rendering failed");
-        }
+        }*/
     }
     fn slider(&mut self, name: &str, min_val: f32, max_val: f32, value: &mut f32) {
         debug_assert!(min_val <= max_val);
@@ -223,8 +257,8 @@ impl UI for MainGui {
         };
     }
 
-    fn handle_event(_event: winit::event::Event<()>) {
-        todo!()
+    fn handle_window_event(&mut self, event: &winit::event::WindowEvent) {
+        self.state.on_event(&self.context, event);
     }
 
     fn slideri(&mut self, _name: &str, _min_value: i32, _max_val: i32, _value: &mut i32) {

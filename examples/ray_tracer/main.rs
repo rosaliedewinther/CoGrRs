@@ -3,25 +3,23 @@ use std::fmt::Display;
 use crate::bvh::{cross, dot, BVHNode, Ray};
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
-use gpu::wgpu_impl::Execution::PerPixel2D;
+use gpu::shader::Execution::PerPixel2D;
 
 use gpu::wgpu::TextureFormat::Rgba8Uint;
-use gpu::wgpu_impl::CoGrWGPU;
-use gpu::{CoGr, CoGrEncoder};
+use gpu::{CoGr, CoGrEncoder, ComboBoxable, Renderer, Ui, UI};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use ui::ComboBoxable;
-use ui::{imgui::MainGui, UI};
+use window::winit::event_loop::{EventLoop};
 use window::{
     input::Input,
-    main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
+    main_loop::{main_loop_run, Game, RenderResult},
     winit::window::Window,
 };
 
 mod bvh;
 
 struct RayTracer {
-    pub gpu_context: CoGrWGPU,
-    pub ui: MainGui,
+    pub gpu_context: Renderer,
+    pub ui: Ui,
     pub bvh: Bvh,
     pub time: f32,
     pub distance: f32,
@@ -76,8 +74,8 @@ const HEIGHT: u32 = 720;
 const HALF_HEIGHT: u32 = HEIGHT / 2;
 
 impl Game for RayTracer {
-    fn on_init(window: &Window) -> Self {
-        let mut gpu_context = CoGrWGPU::new(window, "to_draw_texture", "examples/ray_tracer/");
+    fn on_init(window: &Window, event_loop: &EventLoop<()>) -> Self {
+        let mut gpu_context = Renderer::new(window, "to_draw_texture", "examples/ray_tracer/");
 
         gpu_context.texture("to_draw_texture", (WIDTH, HEIGHT, 1), gpu_context.config.format);
 
@@ -86,7 +84,7 @@ impl Game for RayTracer {
         let mut bvh = Bvh::new("examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
 
-        let ui = MainGui::new(&gpu_context, window);
+        let ui = Ui::new(&gpu_context, window, event_loop);
 
         gpu_context.texture("depth", (WIDTH, HEIGHT, 1), Rgba8Uint);
         gpu_context.buffer::<[Point; 4]>("triangles_block", bvh.triangles.len() as u32);
@@ -152,9 +150,9 @@ impl Game for RayTracer {
     }
 
     fn on_resize(&mut self, _new_size: (u32, u32)) {}
-
-    fn on_tick(&mut self, _dt: f32) -> UpdateResult {
-        UpdateResult::Continue
+    fn on_tick(&mut self, _dt: f32) {}
+    fn on_window_event(&mut self, event: &window::winit::event::WindowEvent) {
+        self.ui.handle_window_event(event);
     }
 }
 

@@ -8,16 +8,17 @@ use crate::shader::get_execution_dims;
 use crate::wgpu_impl::texture::init_texture;
 use crate::CoGrEncoder;
 
-use super::{CoGrWGPU, Execution, GpuResource};
+use super::{CoGrWGPU, GpuResource};
+use crate::shader::Execution;
 
-pub struct AutoEncoder<'a> {
+pub struct EncoderWGPU<'a> {
     pub encoder: Option<CommandEncoder>,
     pub gpu_context: &'a mut CoGrWGPU,
     pub surface_texture: Option<SurfaceTexture>,
     pub surface_texture_view: Option<TextureView>,
 }
 
-impl<'a> CoGrEncoder for AutoEncoder<'a> {
+impl<'a> CoGrEncoder for EncoderWGPU<'a> {
     fn image_buffer_to_screen(&mut self) {
         let mut render_pass = self.encoder.as_mut().unwrap().begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
@@ -195,7 +196,7 @@ impl<'a> CoGrEncoder for AutoEncoder<'a> {
     }
 }
 
-impl<'a> Drop for AutoEncoder<'a> {
+impl<'a> Drop for EncoderWGPU<'a> {
     fn drop(&mut self) {
         match (&mut self.encoder, &mut self.surface_texture, &self.surface_texture_view) {
             (encoder, surface_texture, surface_texture_view) if encoder.is_some() && surface_texture.is_some() && surface_texture_view.is_some() => {

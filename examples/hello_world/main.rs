@@ -1,24 +1,20 @@
-use gpu::{wgpu_impl::CoGrWGPU, CoGr};
-use ui::UI;
+use gpu::{CoGr, Renderer, Ui, UI};
 use window::{
     input::Input,
-    main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
-    winit::window::Window,
+    main_loop::{main_loop_run, Game, RenderResult},
+    winit::{event_loop::EventLoop, window::Window},
 };
 
 pub struct HelloWorld {
-    pub gpu_context: CoGrWGPU,
-    pub ui: ui::imgui::MainGui,
+    pub gpu_context: Renderer,
+    pub ui: Ui,
 }
 
 impl Game for HelloWorld {
-    fn on_init(window: &Window) -> Self {
-        let mut gpu_context = CoGrWGPU::new(window, "to_draw_texture", "");
-
+    fn on_init(window: &Window, event_loop: &EventLoop<()>) -> Self {
+        let mut gpu_context = Renderer::new(window, "to_draw_texture", "");
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
-
-        let ui = ui::imgui::MainGui::new(&gpu_context, window);
-
+        let ui = Ui::new(&gpu_context, window, event_loop);
         HelloWorld { gpu_context, ui }
     }
 
@@ -33,9 +29,9 @@ impl Game for HelloWorld {
     }
 
     fn on_resize(&mut self, _new_size: (u32, u32)) {}
-
-    fn on_tick(&mut self, _dt: f32) -> UpdateResult {
-        UpdateResult::Continue
+    fn on_tick(&mut self, _dt: f32) {}
+    fn on_window_event(&mut self, event: &window::winit::event::WindowEvent) {
+        self.ui.handle_window_event(event);
     }
 }
 

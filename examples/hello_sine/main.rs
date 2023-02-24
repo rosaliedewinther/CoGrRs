@@ -1,17 +1,15 @@
 use bytemuck::{Pod, Zeroable};
-use gpu::wgpu_impl::Execution::PerPixel2D;
-use gpu::CoGrEncoder;
-use gpu::{wgpu_impl::CoGrWGPU, CoGr};
-use ui::{imgui::MainGui, UI};
+use gpu::shader::Execution::PerPixel2D;
+use gpu::{CoGr, CoGrEncoder, Renderer};
+use window::winit::event_loop::{EventLoop};
 use window::{
     input::Input,
-    main_loop::{main_loop_run, Game, RenderResult, UpdateResult},
+    main_loop::{main_loop_run, Game, RenderResult},
     winit::window::Window,
 };
 
 pub struct HelloSine {
-    pub gpu_context: CoGrWGPU,
-    pub ui: MainGui,
+    pub gpu_context: Renderer,
     pub time: f32,
 }
 
@@ -22,14 +20,10 @@ struct GpuData {
 }
 
 impl Game for HelloSine {
-    fn on_init(window: &Window) -> Self {
-        let mut gpu_context = CoGrWGPU::new(window, "to_draw_texture", "examples/hello_sine/");
-
+    fn on_init(window: &Window, _event_loop: &EventLoop<()>) -> Self {
+        let mut gpu_context = Renderer::new(window, "to_draw_texture", "examples/hello_sine/");
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
-
-        let ui = MainGui::new(&gpu_context, window);
-
-        HelloSine { gpu_context, ui, time: 0f32 }
+        HelloSine { gpu_context, time: 0f32 }
     }
 
     fn on_render(&mut self, _input: &mut Input, dt: f32, _window: &Window) -> RenderResult {
@@ -44,10 +38,8 @@ impl Game for HelloSine {
     }
 
     fn on_resize(&mut self, _new_size: (u32, u32)) {}
-
-    fn on_tick(&mut self, _dt: f32) -> UpdateResult {
-        UpdateResult::Continue
-    }
+    fn on_tick(&mut self, _dt: f32) {}
+    fn on_window_event(&mut self, _event: &window::winit::event::WindowEvent) {}
 }
 
 fn main() {

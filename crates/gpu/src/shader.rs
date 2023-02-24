@@ -4,8 +4,6 @@ use inline_spirv_runtime::{ShaderCompilationConfig, ShaderKind};
 use regex::Regex;
 use rspirv_reflect::PushConstantInfo;
 
-use crate::wgpu_impl::Execution;
-
 pub struct Shader {
     pub config: ShaderCompilationConfig,
     pub shader: Vec<u32>,
@@ -15,6 +13,13 @@ pub struct Shader {
     pub cg_y: u32,
     pub cg_z: u32,
     pub bindings: Vec<String>,
+}
+
+pub enum Execution {
+    PerPixel1D,
+    PerPixel2D,
+    N3D(u32),
+    N1D(u32),
 }
 
 impl Debug for Shader {

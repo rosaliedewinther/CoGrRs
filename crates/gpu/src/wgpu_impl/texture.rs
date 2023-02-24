@@ -45,6 +45,7 @@ where
                 sample_count: 1,
                 dimension: texture_dimension,
                 usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[format],
             },
             bytemuck::cast_slice(data),
         ),
@@ -56,6 +57,7 @@ where
             sample_count: 1,
             dimension: texture_dimension,
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[format],
         }),
     };
 
