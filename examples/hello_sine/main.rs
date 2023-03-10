@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
-use gpu::shader::Execution::PerPixel2D;
+use gpu::Execution::PerPixel2D;
 use gpu::{CoGr, CoGrEncoder, Renderer};
-use window::winit::event_loop::{EventLoop};
+use window::winit::event_loop::EventLoop;
 use window::{
     input::Input,
     main_loop::{main_loop_run, Game, RenderResult},
@@ -21,7 +21,7 @@ struct GpuData {
 
 impl Game for HelloSine {
     fn on_init(window: &Window, _event_loop: &EventLoop<()>) -> Self {
-        let mut gpu_context = Renderer::new(window, "to_draw_texture", "examples/hello_sine/");
+        let mut gpu_context = Renderer::new(window, "examples/hello_sine/");
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
         HelloSine { gpu_context, time: 0f32 }
     }
@@ -32,7 +32,7 @@ impl Game for HelloSine {
         self.time += dt;
         let gpu_data = GpuData { time: self.time };
         encoder.dispatch_pipeline("sine", PerPixel2D, &gpu_data);
-        encoder.image_buffer_to_screen();
+        encoder.to_screen("to_draw_texture");
 
         RenderResult::Continue
     }

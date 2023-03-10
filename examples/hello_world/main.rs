@@ -12,7 +12,7 @@ pub struct HelloWorld {
 
 impl Game for HelloWorld {
     fn on_init(window: &Window, event_loop: &EventLoop<()>) -> Self {
-        let mut gpu_context = Renderer::new(window, "to_draw_texture", "");
+        let mut gpu_context = Renderer::new(window, "");
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
         let ui = Ui::new(&gpu_context, window, event_loop);
         HelloWorld { gpu_context, ui }

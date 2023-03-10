@@ -1,6 +1,8 @@
 use std::ops::Range;
 
-use super::CoGrWGPU;
+use wgpu::StorageTextureAccess;
+
+use super::{BufferDescriptor, CoGrWGPU, TextureDescriptor};
 
 #[derive(Debug)]
 pub struct ComputePipeline {
@@ -9,18 +11,13 @@ pub struct ComputePipeline {
 }
 
 #[derive(Debug)]
-pub enum TextureOrBuffer<'a> {
-    Texture(
-        &'a wgpu::TextureView,
-        wgpu::StorageTextureAccess,
-        wgpu::TextureFormat,
-        wgpu::TextureViewDimension,
-    ),
-    Buffer(&'a wgpu::Buffer, bool), //buffer and boolean which is true if readonly
+pub(crate) enum TextureOrBuffer<'a> {
+    Texture(&'a TextureDescriptor),
+    Buffer(&'a BufferDescriptor), //buffer and boolean which is true if readonly
 }
 
 impl ComputePipeline {
-    pub fn new(
+    pub(crate) fn new(
         gpu_context: &CoGrWGPU,
         pipeline_name: &str,
         spirv: &[u32],
@@ -39,8 +36,8 @@ impl ComputePipeline {
 
         for (buffer_index, _) in buffers.iter().enumerate() {
             let resource = match buffers[buffer_index] {
-                TextureOrBuffer::Texture(texture, _, _, _) => wgpu::BindingResource::TextureView(texture),
-                TextureOrBuffer::Buffer(buffer, _) => buffer.as_entire_binding(),
+                TextureOrBuffer::Texture(desc) => wgpu::BindingResource::TextureView(&desc.texture_view),
+                TextureOrBuffer::Buffer(desc) => desc.buffer.as_entire_binding(),
             };
 
             bind_group_entries.push(wgpu::BindGroupEntry {
@@ -48,13 +45,16 @@ impl ComputePipeline {
                 resource,
             });
             let bindingtype = match buffers[buffer_index] {
-                TextureOrBuffer::Texture(_, access, format, dims) => wgpu::BindingType::StorageTexture {
-                    access,
-                    format,
-                    view_dimension: dims,
+                TextureOrBuffer::Texture(desc) => wgpu::BindingType::StorageTexture {
+                    access: StorageTextureAccess::ReadWrite,
+                    format: desc.format,
+                    view_dimension: match desc.size.2 {
+                        1 => wgpu::TextureViewDimension::D2,
+                        _ => wgpu::TextureViewDimension::D3,
+                    },
                 },
-                TextureOrBuffer::Buffer(_, read_only) => wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only },
+                TextureOrBuffer::Buffer(_) => wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: false },
                     has_dynamic_offset: false,
                     min_binding_size: None, //TODO set this to correct value
                 },

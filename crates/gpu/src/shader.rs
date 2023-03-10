@@ -1,39 +1,17 @@
-use std::fmt::Debug;
-
 use inline_spirv_runtime::{ShaderCompilationConfig, ShaderKind};
 use regex::Regex;
 use rspirv_reflect::PushConstantInfo;
+
+use crate::Execution;
 
 pub struct Shader {
     pub config: ShaderCompilationConfig,
     pub shader: Vec<u32>,
     pub push_constant_info: PushConstantInfo,
-    //pub shader_bytes: &'a [u8],
     pub cg_x: u32, //compute group size x
     pub cg_y: u32,
     pub cg_z: u32,
     pub bindings: Vec<String>,
-}
-
-pub enum Execution {
-    PerPixel1D,
-    PerPixel2D,
-    N3D(u32),
-    N1D(u32),
-}
-
-impl Debug for Shader {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Shader")
-            .field("shader", &self.shader)
-            .field("push_constant_offset", &self.push_constant_info.offset)
-            .field("push_constant_size", &self.push_constant_info.size)
-            .field("cg_x", &self.cg_x)
-            .field("cg_y", &self.cg_y)
-            .field("cg_z", &self.cg_z)
-            .field("bindings", &self.bindings)
-            .finish()
-    }
 }
 
 impl Shader {
@@ -84,19 +62,19 @@ impl Shader {
     }
 }
 
-pub fn get_execution_dims(shader: &Shader, execution_mode: Execution, texture_size: (u32, u32)) -> (u32, u32, u32) {
+pub fn get_execution_dims(workgroup_size: (u32, u32, u32), execution_mode: Execution, texture_size: (u32, u32)) -> (u32, u32, u32) {
     match execution_mode {
-        Execution::PerPixel1D => ((texture_size.0 * texture_size.1 + shader.cg_x - 1) / shader.cg_x, 1u32, 1u32),
+        Execution::PerPixel1D => ((texture_size.0 * texture_size.1 + workgroup_size.0 - 1) / workgroup_size.0, 1u32, 1u32),
         Execution::PerPixel2D => (
-            (texture_size.0 + shader.cg_x - 1) / shader.cg_x,
-            (texture_size.1 + shader.cg_y - 1) / shader.cg_y,
+            (texture_size.0 + workgroup_size.0 - 1) / workgroup_size.0,
+            (texture_size.1 + workgroup_size.1 - 1) / workgroup_size.1,
             1,
         ),
         Execution::N3D(n) => (
-            (n + shader.cg_x - 1) / shader.cg_x,
-            (n + shader.cg_y - 1) / shader.cg_y,
-            (n + shader.cg_z - 1) / shader.cg_z,
+            (n + workgroup_size.0 - 1) / workgroup_size.0,
+            (n + workgroup_size.1 - 1) / workgroup_size.1,
+            (n + workgroup_size.2 - 1) / workgroup_size.2,
         ),
-        Execution::N1D(n) => ((n + shader.cg_x - 1) / shader.cg_x, 1, 1),
+        Execution::N1D(n) => ((n + workgroup_size.0 - 1) / workgroup_size.0, 1, 1),
     }
 }

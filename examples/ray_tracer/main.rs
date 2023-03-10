@@ -4,10 +4,9 @@ use crate::bvh::{cross, dot, BVHNode, Ray};
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
 use gpu::egui::ComboBox;
-use gpu::shader::Execution::PerPixel2D;
-
 use gpu::wgpu::TextureFormat::Rgba8Uint;
-use gpu::{CoGr, CoGrEncoder, ComboBoxable, Renderer, Ui, UI};
+use gpu::Execution::PerPixel2D;
+use gpu::{CoGr, CoGrEncoder, Renderer, Ui, UI};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use window::winit::event_loop::EventLoop;
 use window::{
@@ -31,7 +30,7 @@ struct RayTracer {
 
 #[repr(C)]
 #[derive(Pod, Zeroable, Copy, Clone)]
-struct CameraData {
+pub struct CameraData {
     pub dir: Point,
     pub pos: Point,
     pub side: Point,
@@ -50,24 +49,6 @@ enum RenderMode {
     Gpu,
     Cpu,
 }
-impl Display for RenderMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RenderMode::Gpu => f.write_str("Gpu"),
-            RenderMode::Cpu => f.write_str("Cpu"),
-        }
-    }
-}
-
-impl ComboBoxable for RenderMode {
-    fn get_names() -> &'static [&'static str] {
-        &["Gpu", "Cpu"]
-    }
-
-    fn get_variant(index: usize) -> Self {
-        vec![RenderMode::Gpu, RenderMode::Cpu][index]
-    }
-}
 
 const WIDTH: u32 = 1280;
 const HALF_WIDTH: u32 = WIDTH / 2;
@@ -76,7 +57,7 @@ const HALF_HEIGHT: u32 = HEIGHT / 2;
 
 impl Game for RayTracer {
     fn on_init(window: &Window, event_loop: &EventLoop<()>) -> Self {
-        let mut gpu_context = Renderer::new(window, "to_draw_texture", "examples/ray_tracer/");
+        let mut gpu_context = Renderer::new(window, "examples/ray_tracer/");
 
         gpu_context.texture("to_draw_texture", (WIDTH, HEIGHT, 1), gpu_context.config.format);
 
@@ -92,10 +73,12 @@ impl Game for RayTracer {
         gpu_context.buffer::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.len() as u32);
 
         {
-            let encoder = gpu_context.get_encoder();
-            encoder.set_buffer_data::<[Point; 4]>("triangles_block", bvh.triangles.as_slice(), bvh.triangles.len(), 0);
-            encoder.set_buffer_data::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.as_slice(), bvh.bvh_nodes.len(), 0);
+            let mut encoder = gpu_context.get_encoder();
+            encoder.set_buffer_data::<[Point; 4]>("triangles_block", bvh.triangles.as_slice());
+            encoder.set_buffer_data::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.as_slice());
         }
+
+        gpu_context.log_state();
 
         RayTracer {
             gpu_context,
@@ -141,7 +124,7 @@ impl Game for RayTracer {
         }
         {
             let mut encoder = self.gpu_context.get_encoder_for_draw();
-            encoder.image_buffer_to_screen();
+            encoder.to_screen("to_draw_texture");
             self.ui.draw(&mut encoder, window, |ui| {
                 ui.label(format!("ms: {}", dt * 1000f32));
                 ComboBox::from_label("Render mode")
@@ -165,44 +148,7 @@ impl Game for RayTracer {
 
 impl RayTracer {
     fn render_cpu(&mut self, camera_data: &CameraData) {
-        (0..HEIGHT * WIDTH)
-            .into_par_iter()
-            .map(|index| {
-                let x = index % WIDTH;
-                let x = x as f32;
-                let y = index / WIDTH;
-                let y = y as f32;
-
-                let screen_point = camera_data.pos
-                    + camera_data.dir
-                    + camera_data.side * (x - camera_data.half_width) / (camera_data.width / (camera_data.width / camera_data.height))
-                    + camera_data.up * (y - camera_data.half_height) / camera_data.height;
-
-                let ray_direction = normalize(screen_point - camera_data.pos);
-                let ray_r_direction = Point::new(1f32 / ray_direction.pos[0], 1f32 / ray_direction.pos[1], 1f32 / ray_direction.pos[2]);
-                let mut ray = Ray {
-                    o: camera_data.pos,
-                    d: ray_direction,
-                    d_r: ray_r_direction,
-                    t: f32::MAX,
-                    prim: u32::MAX,
-                    _padding1: 0,
-                    _padding2: 0,
-                };
-
-                self.bvh.fast_intersect(&mut ray);
-
-                if ray.t < 10000000f32 {
-                    let normal = self.bvh.triangle_normal(ray.prim);
-                    let intensity = (dot(normal, normalize(Point::new(1f32, -1f32, 1f32))) + 1f32) / 10f32;
-
-                    [(intensity * 255f32) as u8, (intensity * 255f32) as u8, (intensity * 255f32) as u8, 255]
-                } else {
-                    [0, 0, 0, 255]
-                }
-            })
-            .collect_into_vec(&mut self.screen_buffer);
-
+        self.bvh.trace_rays(camera_data, &mut self.screen_buffer);
         let mut encoder = self.gpu_context.get_encoder();
         encoder.set_texture_data("depth", self.screen_buffer.as_slice());
         encoder.dispatch_pipeline("draw", PerPixel2D, &[0; 0]);

@@ -1,36 +1,38 @@
 use bytemuck::Pod;
-use shader::Execution;
-use wgpu::TextureFormat;
+pub use wgpu::TextureFormat;
 use winit::{event::WindowEvent, event_loop::EventLoop, window::Window};
 
 pub use egui;
-pub use wgpu;
-pub mod shader;
-mod ui;
+mod shader;
 mod wgpu_impl;
 
+pub enum Execution {
+    PerPixel1D,
+    PerPixel2D,
+    N3D(u32),
+    N1D(u32),
+}
+pub trait CoGrReadHandle {
+    fn wait_and_read<'a, T: Pod>(self, gpu_context: &Renderer) -> &'a [T];
+}
+
 pub trait CoGrEncoder {
-    fn image_buffer_to_screen(&mut self);
-    fn dispatch_pipeline<PushConstants: Pod>(&mut self, pipeline_name: &str, execution_mode: Execution, push_constants: &PushConstants);
-    fn set_buffer_data<T: Pod>(&self, buffer_name: &str, data: &[T], elements_to_copy: usize, element_copy_start: usize);
-    fn read_buffer<T: Pod>(&self, buffer_name: &str, elements_to_copy: usize, data: &mut [T]);
-    fn set_texture_data<T: Pod>(&mut self, texture_name: &str, data: &[T]);
-    fn read_texture<T: Pod>(&self, texture_name: &str, data: &mut [T]);
+    fn dispatch_pipeline<PushConstants: Pod>(&mut self, pipeline_name: &'static str, execution_mode: Execution, push_constants: &PushConstants);
+    fn to_screen(&mut self, texture_name: &'static str);
+    fn set_buffer_data<T: Pod>(&mut self, buffer_name: &'static str, data: &[T]);
+    fn read_buffer<T: Pod>(&mut self, buffer_name: &'static str) -> ReadHandle;
+    fn set_texture_data<T: Pod>(&mut self, texture_name: &'static str, data: &[T]);
+    fn read_texture<T: Pod>(&mut self, texture_name: &'static str) -> ReadHandle;
 }
 pub trait CoGr {
     type Encoder<'a>
     where
         Self: 'a;
-    fn new(window: &Window, to_screen_texture_name: &str, shaders_folder: &str) -> Self;
+    fn new(window: &Window, shaders_folder: &str) -> Self;
     fn get_encoder_for_draw<'a>(&'a mut self) -> Self::Encoder<'a>;
     fn get_encoder<'a>(&'a mut self) -> Self::Encoder<'a>;
-    fn buffer<Type>(&mut self, buffer_name: &str, number_of_elements: u32);
-    fn texture(&mut self, texture_name: &str, number_of_elements: (u32, u32, u32), format: TextureFormat);
-    fn refresh_pipelines(&mut self);
-}
-pub trait ComboBoxable: Copy {
-    fn get_names() -> &'static [&'static str];
-    fn get_variant(index: usize) -> Self;
+    fn buffer<Type>(&mut self, buffer_name: &'static str, number_of_elements: u32);
+    fn texture(&mut self, texture_name: &'static str, number_of_elements: (u32, u32, u32), format: TextureFormat);
 }
 pub trait UI {
     fn new(gpu_context: &Renderer, window: &Window, event_loop: &EventLoop<()>) -> Self;
@@ -44,3 +46,7 @@ pub type Renderer = wgpu_impl::CoGrWGPU;
 pub type Encoder<'a> = wgpu_impl::encoder::EncoderWGPU<'a>;
 #[cfg(feature = "wgpu")]
 pub type Ui = crate::wgpu_impl::ui::UiWGPU;
+#[cfg(feature = "wgpu")]
+pub type ReadHandle = crate::wgpu_impl::read_handle::WGPUReadhandle;
+#[cfg(feature = "wgpu")]
+pub use wgpu;

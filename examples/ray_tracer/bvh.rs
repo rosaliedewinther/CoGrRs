@@ -1,11 +1,14 @@
 use bytemuck::{Pod, Zeroable};
 use core::panic;
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::fmt::Debug;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
     ops::{Add, Div, Mul, Sub},
 };
+
+use crate::CameraData;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -535,5 +538,44 @@ impl Bvh {
                 }
             }
         }
+    }
+    pub fn trace_rays(&self, camera_data: &CameraData, screen_buffer: &mut Vec<[u8; 4]>) {
+        (0..(camera_data.height * camera_data.width) as u32)
+            .into_par_iter()
+            .map(|index| {
+                let x = index % camera_data.width as u32;
+                let x = x as f32;
+                let y = index / camera_data.width as u32;
+                let y = y as f32;
+
+                let screen_point = camera_data.pos
+                    + camera_data.dir
+                    + camera_data.side * (x - camera_data.half_width) / (camera_data.width / (camera_data.width / camera_data.height))
+                    + camera_data.up * (y - camera_data.half_height) / camera_data.height;
+
+                let ray_direction = normalize(screen_point - camera_data.pos);
+                let ray_r_direction = Point::new(1f32 / ray_direction.pos[0], 1f32 / ray_direction.pos[1], 1f32 / ray_direction.pos[2]);
+                let mut ray = Ray {
+                    o: camera_data.pos,
+                    d: ray_direction,
+                    d_r: ray_r_direction,
+                    t: f32::MAX,
+                    prim: u32::MAX,
+                    _padding1: 0,
+                    _padding2: 0,
+                };
+
+                self.fast_intersect(&mut ray);
+
+                if ray.t < 10000000f32 {
+                    let normal = self.triangle_normal(ray.prim);
+                    let intensity = (dot(normal, normalize(Point::new(1f32, -1f32, 1f32))) + 1f32) / 10f32;
+
+                    [(intensity * 255f32) as u8, (intensity * 255f32) as u8, (intensity * 255f32) as u8, 255]
+                } else {
+                    [0, 0, 0, 255]
+                }
+            })
+            .collect_into_vec(screen_buffer);
     }
 }

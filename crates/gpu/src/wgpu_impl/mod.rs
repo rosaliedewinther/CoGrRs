@@ -1,64 +1,78 @@
-
+use crate::wgpu_impl::compute_pipeline::TextureOrBuffer;
+use anyhow::anyhow;
+use anyhow::Result;
 use wgpu::Backends;
+use wgpu::Buffer;
 use wgpu::InstanceDescriptor;
+use wgpu::TextureFormat;
+use wgpu::{Texture, TextureView};
 use winit::window::Window;
 
+use core::panic;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use wgpu::TextureFormat::{Bgra8Unorm, Rgba8Unorm};
 
-use wgpu::TextureFormat::Rgba8Unorm;
-
-use log::{info, warn};
-
-use wgpu::TextureViewDimension;
+use log::info;
 
 use crate::shader::Shader;
 use crate::CoGr;
 
 use self::buffer::init_storage_buffer;
 use self::compute_pipeline::ComputePipeline;
-use self::compute_pipeline::TextureOrBuffer;
 use self::encoder::EncoderWGPU;
 use self::texture::init_texture;
 use self::to_screen_pipeline::ToScreenPipeline;
 
 mod buffer;
 mod compute_pipeline;
-pub mod encoder;
+pub(crate) mod encoder;
+pub(crate) mod read_handle;
 mod texture;
 mod to_screen_pipeline;
 pub(crate) mod ui;
 
-enum GpuResource {
-    Buffer(wgpu::Buffer),
-    Texture(
-        wgpu::TextureView,
-        wgpu::TextureFormat,
-        wgpu::TextureViewDimension,
-        wgpu::Texture,
-        (u32, u32, u32),
-    ),
-    Pipeline(ComputePipeline, Shader),
+#[derive(Hash, PartialEq, Eq)]
+enum ResourceDescriptor {
+    Buffer(&'static str, u32, &'static str),               // name, number of items, type name
+    Texture(&'static str, (u32, u32, u32), TextureFormat), // name, size, format
+    Pipeline(&'static str),                                // name
+    ToScreenPipeline(&'static str, TextureFormat),         // texture name, format
 }
-
-impl Debug for GpuResource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Buffer(arg0) => f.debug_tuple("Buffer").field(arg0).finish(),
-            Self::Texture(arg0, arg1, arg2, arg3, arg4) => f.debug_tuple("Texture").field(arg0).field(arg1).field(arg2).field(arg3).field(arg4).finish(),
-            Self::Pipeline(arg0, arg1) => f.debug_tuple("Pipeline").field(arg0).field(arg1).finish(),
-        }
-    }
+#[derive(Debug)]
+pub(crate) struct BufferDescriptor {
+    name: &'static str,
+    number_of_elements: u32,
+    type_name: &'static str,
+    buffer: Buffer,
+}
+#[derive(Debug)]
+pub(crate) struct TextureDescriptor {
+    name: &'static str,
+    size: (u32, u32, u32),
+    format: TextureFormat,
+    texture: Texture,
+    texture_view: TextureView,
+}
+#[derive(Debug)]
+struct PipelineDescriptor {
+    name: &'static str,
+    pipeline: ComputePipeline,
+    workgroup_size: (u32, u32, u32),
+}
+#[derive(Debug)]
+struct ToScreenPipelineDescriptor {
+    texture_name: &'static str,
+    pipeline: ToScreenPipeline,
 }
 
 #[derive(Debug)]
-enum PipelineCreationError {
-    PipelineAlreadyExists(String),
-    NameAlreadyUsedByTexture(String),
-    NameAlreadyUsedByBuffer(String),
-    ResourceDoesntExist(String),
-    PipelineUsedAsShaderResource(String),
+enum GpuResource {
+    Buffer(BufferDescriptor),
+    Texture(TextureDescriptor),
+    Pipeline(PipelineDescriptor),
+    ToScreenPipeline(ToScreenPipelineDescriptor),
 }
 
 pub struct CoGrWGPU {
@@ -66,9 +80,6 @@ pub struct CoGrWGPU {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
-    pub size: (u32, u32),
-    to_screen_texture_name: String,
-    pub to_screen_pipeline: Option<ToScreenPipeline>,
     resources: HashMap<String, GpuResource>,
     shaders_folder: String,
 }
@@ -76,7 +87,7 @@ pub struct CoGrWGPU {
 impl CoGr for CoGrWGPU {
     type Encoder<'a> = EncoderWGPU<'a>;
 
-    fn new(window: &Window, to_screen_texture_name: &str, shaders_folder: &str) -> Self {
+    fn new(window: &Window, shaders_folder: &str) -> Self {
         let instance = wgpu::Instance::new(InstanceDescriptor {
             backends: Backends::VULKAN,
             ..Default::default()
@@ -106,10 +117,10 @@ impl CoGr for CoGrWGPU {
         .expect("can't create device or command queue");
         let formats = surface.get_capabilities(&adapter).formats;
         info!("supported swapchain surface formats: {:?}", formats);
-
-        let surface_format = match formats.contains(&Rgba8Unorm) {
-            true => Rgba8Unorm,
-            false => panic!("neither Rgba8Unorm nor Brga8Unorm is supported"),
+        let surface_format = match (formats.contains(&Rgba8Unorm), formats.contains(&Bgra8Unorm)) {
+            (true, _) => Rgba8Unorm,
+            (_, true) => Bgra8Unorm,
+            _ => panic!("neither Rgba8Unorm nor Bgra8Unorm is supported"),
         };
 
         let config = wgpu::SurfaceConfiguration {
@@ -119,7 +130,7 @@ impl CoGr for CoGrWGPU {
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::Immediate,
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
-            view_formats: vec![wgpu::TextureFormat::Rgba8Unorm],
+            view_formats: vec![surface_format],
         };
         surface.configure(&device, &config);
 
@@ -128,9 +139,6 @@ impl CoGr for CoGrWGPU {
             device,
             queue,
             config,
-            size: (window.inner_size().width, window.inner_size().height),
-            to_screen_texture_name: to_screen_texture_name.to_string(),
-            to_screen_pipeline: None,
             resources: Default::default(),
             shaders_folder: shaders_folder.to_string(),
         }
@@ -145,16 +153,10 @@ impl CoGr for CoGrWGPU {
 
         let surface_texture_view = surface_texture.texture.create_view(&texture_view_config);
 
-        if self.to_screen_pipeline.is_none() {
-            self.to_screen_pipeline = Some(ToScreenPipeline::new(
-                &self.device,
-                self.get_raw_texture(&self.to_screen_texture_name),
-                self.config.format,
-            ));
-        }
-        let encoder = self
+        let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
+        encoder.push_debug_group("user_encoder_for_draw");
         EncoderWGPU {
             encoder: Some(encoder),
             gpu_context: self,
@@ -163,9 +165,10 @@ impl CoGr for CoGrWGPU {
         }
     }
     fn get_encoder<'a>(&'a mut self) -> EncoderWGPU<'a> {
-        let encoder = self
+        let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
+        encoder.push_debug_group("user_encoder");
         EncoderWGPU {
             encoder: Some(encoder),
             gpu_context: self,
@@ -173,61 +176,50 @@ impl CoGr for CoGrWGPU {
             surface_texture_view: None,
         }
     }
-
-    fn buffer<Type>(&mut self, buffer_name: &str, number_of_elements: u32) {
+    fn buffer<T>(&mut self, buffer_name: &'static str, number_of_elements: u32) {
         match self.resources.get(buffer_name) {
-            Some(GpuResource::Texture(_, _, _, _, _)) => panic!("{} is not a buffer but a texture", buffer_name),
-            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a buffer but a pipeline", buffer_name),
-            Some(GpuResource::Buffer(_)) => warn!("buffer {} already exists", buffer_name),
-            None => {
+            Some(GpuResource::Buffer(_)) | None => {
                 self.resources.insert(
                     buffer_name.to_string(),
-                    GpuResource::Buffer(init_storage_buffer(self, buffer_name, number_of_elements * std::mem::size_of::<Type>() as u32)),
+                    GpuResource::Buffer(BufferDescriptor {
+                        name: buffer_name,
+                        number_of_elements,
+                        type_name: std::any::type_name::<T>(),
+                        buffer: init_storage_buffer(self, buffer_name, number_of_elements * std::mem::size_of::<T>() as u32),
+                    }),
                 );
+            }
+            val => {
+                panic!("{} is not a buffer but contains: {:?}", buffer_name, val);
             }
         }
     }
-    fn texture(&mut self, texture_name: &str, number_of_elements: (u32, u32, u32), format: wgpu::TextureFormat) {
+    fn texture(&mut self, texture_name: &'static str, number_of_elements: (u32, u32, u32), format: wgpu::TextureFormat) {
         match self.resources.get(texture_name) {
-            Some(GpuResource::Buffer(_)) => panic!("{} is not a texture but a buffer", texture_name),
-            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a texture but a buffer", texture_name),
-            Some(GpuResource::Texture(_, _, _, _, _)) => warn!("texture {} already exists", texture_name),
-            None => {
+            Some(GpuResource::Texture(_)) | None => {
                 let (texture, texture_view) = init_texture::<()>(self, texture_name, number_of_elements, format, None);
-
                 self.resources.insert(
                     texture_name.to_string(),
-                    GpuResource::Texture(
-                        texture_view,
+                    GpuResource::Texture(TextureDescriptor {
+                        name: texture_name,
+                        size: number_of_elements,
                         format,
-                        match number_of_elements.2 {
-                            0 => TextureViewDimension::D2,
-                            1 => TextureViewDimension::D2,
-                            _ => TextureViewDimension::D3,
-                        },
                         texture,
-                        number_of_elements,
-                    ),
+                        texture_view,
+                    }),
                 );
             }
+            val => {
+                panic!("{} is not a texture but contains: {:?}", texture_name, val);
+            }
         }
-    }
-
-    fn refresh_pipelines(&mut self) {
-        todo!()
     }
 }
 impl CoGrWGPU {
-    fn init_pipeline(&mut self, shader_name: &str) -> Result<(), Vec<PipelineCreationError>> {
+    fn init_pipeline(&mut self, shader_name: &'static str) -> Result<()> {
         match self.resources.get(shader_name) {
-            Some(GpuResource::Texture(_, _, _, _, _)) => {
-                return Err(vec![PipelineCreationError::NameAlreadyUsedByTexture(shader_name.to_string())]);
-            }
-            Some(GpuResource::Buffer(_)) => {
-                return Err(vec![PipelineCreationError::NameAlreadyUsedByBuffer(shader_name.to_string())]);
-            }
-            Some(GpuResource::Pipeline(_, _)) => return Err(vec![PipelineCreationError::PipelineAlreadyExists(shader_name.to_string())]),
             None => (),
+            val => return Err(anyhow!("{} already exists and contains: {:?}", shader_name, val)),
         }
 
         let shader = Shader::get_shader_properties(shader_name, &self.shaders_folder);
@@ -238,55 +230,45 @@ impl CoGrWGPU {
             .bindings
             .iter()
             .map(|resource| match self.resources.get(resource) {
-                Some(GpuResource::Buffer(buffer)) => Ok(TextureOrBuffer::Buffer(buffer, false)),
-                Some(GpuResource::Texture(texture, format, dimension, _, _)) => {
-                    Ok(TextureOrBuffer::Texture(texture, wgpu::StorageTextureAccess::ReadWrite, *format, *dimension))
-                }
-                Some(GpuResource::Pipeline(_, _)) => Err(PipelineCreationError::PipelineUsedAsShaderResource(resource.to_string())),
-                None => Err(PipelineCreationError::ResourceDoesntExist(resource.to_string())),
+                Some(GpuResource::Buffer(desc)) => Ok(TextureOrBuffer::Buffer(desc)),
+                Some(GpuResource::Texture(desc)) => Ok(TextureOrBuffer::Texture(desc)),
+                val => Err(anyhow!("{} is not a buffer or texture but contains: {:?}", resource, val)),
             })
             .filter_map(|r| r.map_err(|e| errors.push(e)).ok())
             .collect::<Vec<TextureOrBuffer>>();
 
         if !errors.is_empty() {
-            return Err(errors);
+            return Err(anyhow!("{:?}", errors));
         }
 
         let push_constant_range = shader.push_constant_info.offset..shader.push_constant_info.offset + shader.push_constant_info.size;
 
         self.resources.insert(
             shader_name.to_string(),
-            GpuResource::Pipeline(
-                ComputePipeline::new(self, shader_name, shader.shader.as_slice(), bindings.as_slice(), Some(push_constant_range)),
-                shader,
-            ),
+            GpuResource::Pipeline(PipelineDescriptor {
+                name: shader_name,
+                workgroup_size: (shader.cg_x, shader.cg_y, shader.cg_z),
+                pipeline: ComputePipeline::new(self, shader_name, shader.shader.as_slice(), bindings.as_slice(), Some(push_constant_range)),
+            }),
         );
         Ok(())
     }
     fn get_raw_texture(&self, texture_name: &str) -> &wgpu::TextureView {
         match self.resources.get(texture_name) {
-            Some(GpuResource::Buffer(_)) => panic!("{} is not a texture but a buffer", texture_name),
-            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a texture but a buffer", texture_name),
-            Some(GpuResource::Texture(t, _, _, _, _)) => t,
-            None => panic!("resource does not exist: {}", texture_name),
+            Some(GpuResource::Texture(desc)) => &desc.texture_view,
+            val => panic!("{} is not a texture but contained: {:?}", texture_name, val),
         }
     }
     fn get_raw_buffer(&self, buffer_name: &str) -> &wgpu::Buffer {
         match self.resources.get(buffer_name) {
-            Some(GpuResource::Texture(_, _, _, _, _)) => panic!("{} is not a buffer but a texture", buffer_name),
-            Some(GpuResource::Pipeline(_, _)) => panic!("{} is not a buffer but a pipeline", buffer_name),
-            Some(GpuResource::Buffer(b)) => b,
-            None => panic!("resource does not exist: {}", buffer_name),
+            Some(GpuResource::Buffer(desc)) => &desc.buffer,
+            val => panic!("{} is not a buffer but contained: {:?}", buffer_name, val),
         }
     }
-    pub fn delete_all_pipelines(&mut self) {
-        self.resources
-            .retain(|_, elem| if let GpuResource::Pipeline(_, _) = elem { false } else { true });
-    }
     pub fn log_state(&self) {
-        info!("gpu resource state:");
+        println!("gpu resource state:");
         for (key, val) in &self.resources {
-            info!("{}: {:?}", key, val);
+            println!("{}: {:#?}", key, val);
         }
     }
 }

@@ -19,10 +19,13 @@ rspirv-reflect = "0.7"
 fxhash = "0.2"
 serde_yaml = "0.9"
 regex = "1.7"
+anyhow = "1.0"
 
 egui = "0.21"
 egui-wgpu = "0.21"
 egui-winit = "0.21"
+
+futures = "0.3"
 
 
 [features]
