@@ -33,13 +33,7 @@ mod texture;
 mod to_screen_pipeline;
 pub(crate) mod ui;
 
-#[derive(Hash, PartialEq, Eq)]
-enum ResourceDescriptor {
-    Buffer(&'static str, u32, &'static str),               // name, number of items, type name
-    Texture(&'static str, (u32, u32, u32), TextureFormat), // name, size, format
-    Pipeline(&'static str),                                // name
-    ToScreenPipeline(&'static str, TextureFormat),         // texture name, format
-}
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct BufferDescriptor {
     name: &'static str,
@@ -47,6 +41,7 @@ pub(crate) struct BufferDescriptor {
     type_name: &'static str,
     buffer: Buffer,
 }
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct TextureDescriptor {
     name: &'static str,
@@ -55,12 +50,14 @@ pub(crate) struct TextureDescriptor {
     texture: Texture,
     texture_view: TextureView,
 }
+#[allow(dead_code)]
 #[derive(Debug)]
 struct PipelineDescriptor {
     name: &'static str,
     pipeline: ComputePipeline,
     workgroup_size: (u32, u32, u32),
 }
+#[allow(dead_code)]
 #[derive(Debug)]
 struct ToScreenPipelineDescriptor {
     texture_name: &'static str,
@@ -143,7 +140,7 @@ impl CoGr for CoGrWGPU {
             shaders_folder: shaders_folder.to_string(),
         }
     }
-    fn get_encoder_for_draw<'a>(&'a mut self) -> EncoderWGPU<'a> {
+    fn get_encoder_for_draw(&mut self) -> EncoderWGPU {
         let surface_texture = self.surface.get_current_texture().expect("can't get new surface texture");
 
         let texture_view_config = wgpu::TextureViewDescriptor {
@@ -164,7 +161,7 @@ impl CoGr for CoGrWGPU {
             surface_texture_view: Some(surface_texture_view),
         }
     }
-    fn get_encoder<'a>(&'a mut self) -> EncoderWGPU<'a> {
+    fn get_encoder(&mut self) -> EncoderWGPU {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
@@ -257,12 +254,6 @@ impl CoGrWGPU {
         match self.resources.get(texture_name) {
             Some(GpuResource::Texture(desc)) => &desc.texture_view,
             val => panic!("{} is not a texture but contained: {:?}", texture_name, val),
-        }
-    }
-    fn get_raw_buffer(&self, buffer_name: &str) -> &wgpu::Buffer {
-        match self.resources.get(buffer_name) {
-            Some(GpuResource::Buffer(desc)) => &desc.buffer,
-            val => panic!("{} is not a buffer but contained: {:?}", buffer_name, val),
         }
     }
     pub fn log_state(&self) {

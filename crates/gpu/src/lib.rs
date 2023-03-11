@@ -29,8 +29,8 @@ pub trait CoGr {
     where
         Self: 'a;
     fn new(window: &Window, shaders_folder: &str) -> Self;
-    fn get_encoder_for_draw<'a>(&'a mut self) -> Self::Encoder<'a>;
-    fn get_encoder<'a>(&'a mut self) -> Self::Encoder<'a>;
+    fn get_encoder_for_draw(&mut self) -> Self::Encoder<'_>;
+    fn get_encoder(&mut self) -> Self::Encoder<'_>;
     fn buffer<Type>(&mut self, buffer_name: &'static str, number_of_elements: u32);
     fn texture(&mut self, texture_name: &'static str, number_of_elements: (u32, u32, u32), format: TextureFormat);
 }

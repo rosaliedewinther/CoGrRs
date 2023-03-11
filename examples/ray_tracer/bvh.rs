@@ -1,14 +1,11 @@
 use bytemuck::{Pod, Zeroable};
 use core::panic;
-use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::fmt::Debug;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
     ops::{Add, Div, Mul, Sub},
 };
-
-use crate::CameraData;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -174,10 +171,6 @@ impl Point {
     }
 }
 
-pub fn dot(a: Point, b: Point) -> f32 {
-    a.pos[0] * b.pos[0] + a.pos[1] * b.pos[1] + a.pos[2] * b.pos[2]
-}
-
 pub fn cross(a: Point, b: Point) -> Point {
     Point {
         pos: [
@@ -282,18 +275,6 @@ impl Bvh {
         self.triangles = self.indices.iter().map(|index| self.triangles[*index as usize]).collect();
     }
 
-    //loop invariants:
-    // current_bvh_index.count = the number of primitives which still have to be divided
-    // current_bvh_index.aabb = correct
-    // current_bvh_index.left_first = ???
-    // start = start in indices buffer
-    // pool_index = first free spot in bvh_nodes
-
-    // count performance results
-    // 2 = 0.1866s
-    // 3 = 0.1857s
-    // 4 = 0.187s
-    // 5 = 0.1901s
     fn subdivide(&mut self, current_bvh_index: usize, start: u32, pool_index: &mut u32) {
         if self.bvh_nodes[current_bvh_index].count <= 3 {
             self.bvh_nodes[current_bvh_index].left_first = start as i32;
@@ -425,157 +406,5 @@ impl Bvh {
 
     fn lerp(a: f32, b: f32, p: f32) -> f32 {
         a + (b - a) * p
-    }
-    pub fn intersects_triangle(&self, ray: &mut Ray, triangle_index: u32) {
-        let a = &self.triangles[triangle_index as usize][0];
-        let b = &self.triangles[triangle_index as usize][1];
-        let c = &self.triangles[triangle_index as usize][2];
-        let a_to_b = *b - *a;
-        let a_to_c = *c - *a;
-        let u_vec = cross(ray.d, a_to_c);
-        let det = dot(a_to_b, u_vec);
-        let inv_det = 1.0 / det;
-        let a_to_origin = ray.o - *a;
-        let u = dot(a_to_origin, u_vec) * inv_det;
-        if !(0f32..=1f32).contains(&u) {
-            return;
-        }
-        let v_vec = cross(a_to_origin, a_to_b);
-        let v = dot(ray.d, v_vec) * inv_det;
-        if (v < 0.0) | (u + v > 1.0) {
-            return;
-        }
-        let dist = dot(a_to_c, v_vec) * inv_det;
-        if dist > 0.0000001 && dist < ray.t {
-            ray.t = dist;
-            ray.prim = triangle_index;
-        }
-    }
-    // returns nea/far
-    pub fn intersect_aabb(&self, ray: &mut Ray, bvh_node: u32) -> f32 {
-        let bvh_node = &self.bvh_nodes[bvh_node as usize];
-        let v_max = Point {
-            pos: [bvh_node.maxx, bvh_node.maxy, bvh_node.maxz, 0f32],
-        };
-        let v_min = Point {
-            pos: [bvh_node.minx, bvh_node.miny, bvh_node.minz, 0f32],
-        };
-        let t_min = (v_min - ray.o) * ray.d_r;
-        let t_max = (v_max - ray.o) * ray.d_r;
-        let t1 = Point::min(t_min, t_max);
-        let t2 = Point::max(t_min, t_max);
-        let t_near = f32::max(f32::max(t1.pos[0], t1.pos[1]), t1.pos[2]);
-        let t_far = f32::min(f32::min(t2.pos[0], t2.pos[1]), t2.pos[2]);
-        if t_far >= t_near && t_near < ray.t && t_far > 0f32 {
-            t_near
-        } else {
-            f32::MAX
-        }
-    }
-
-    pub fn intersect(&self, ray: &mut Ray) {
-        for triangle_id in 0..self.triangles.len() {
-            self.intersects_triangle(ray, triangle_id as u32);
-        }
-    }
-
-    pub fn triangle_normal(&self, triangle_index: u32) -> Point {
-        let triangle = self.triangles[triangle_index as usize];
-        let p1 = triangle[1] - triangle[0];
-        let p2 = triangle[1] - triangle[2];
-        normalize(cross(normalize(p1), normalize(p2)))
-    }
-    pub fn fast_intersect(&self, ray: &mut Ray) {
-        let mut stack = [(0usize, 0f32); 32];
-        let mut node_index = 0;
-        let mut stack_ptr = 0;
-        'outer: loop {
-            if self.bvh_nodes[node_index].count > 0 {
-                for i in 0..self.bvh_nodes[node_index].count {
-                    self.intersects_triangle(ray, self.bvh_nodes[node_index].left_first as u32 + i as u32)
-                }
-                if stack_ptr == 0 {
-                    break;
-                } else {
-                    let mut t = f32::MAX;
-                    while t >= ray.t {
-                        if stack_ptr == 0 {
-                            break 'outer;
-                        }
-                        stack_ptr -= 1;
-                        (node_index, t) = stack[stack_ptr];
-                    }
-                    continue;
-                }
-            }
-            let mut child1 = self.bvh_nodes[node_index].left_first as u32;
-            let mut child2 = self.bvh_nodes[node_index].left_first as u32 + 1;
-
-            let mut dist1 = self.intersect_aabb(ray, child1);
-            let mut dist2 = self.intersect_aabb(ray, child2);
-            if dist1 > dist2 {
-                std::mem::swap(&mut dist1, &mut dist2);
-                std::mem::swap(&mut child1, &mut child2);
-            }
-            if dist1 == f32::MAX {
-                if stack_ptr == 0 {
-                    break;
-                } else {
-                    let mut t = f32::MAX;
-                    while t >= ray.t {
-                        if stack_ptr == 0 {
-                            break 'outer;
-                        }
-                        stack_ptr -= 1;
-                        (node_index, t) = stack[stack_ptr];
-                    }
-                }
-            } else {
-                node_index = child1 as usize;
-                if dist2 != f32::MAX {
-                    stack[stack_ptr] = (child2 as usize, dist2);
-                    stack_ptr += 1;
-                }
-            }
-        }
-    }
-    pub fn trace_rays(&self, camera_data: &CameraData, screen_buffer: &mut Vec<[u8; 4]>) {
-        (0..(camera_data.height * camera_data.width) as u32)
-            .into_par_iter()
-            .map(|index| {
-                let x = index % camera_data.width as u32;
-                let x = x as f32;
-                let y = index / camera_data.width as u32;
-                let y = y as f32;
-
-                let screen_point = camera_data.pos
-                    + camera_data.dir
-                    + camera_data.side * (x - camera_data.half_width) / (camera_data.width / (camera_data.width / camera_data.height))
-                    + camera_data.up * (y - camera_data.half_height) / camera_data.height;
-
-                let ray_direction = normalize(screen_point - camera_data.pos);
-                let ray_r_direction = Point::new(1f32 / ray_direction.pos[0], 1f32 / ray_direction.pos[1], 1f32 / ray_direction.pos[2]);
-                let mut ray = Ray {
-                    o: camera_data.pos,
-                    d: ray_direction,
-                    d_r: ray_r_direction,
-                    t: f32::MAX,
-                    prim: u32::MAX,
-                    _padding1: 0,
-                    _padding2: 0,
-                };
-
-                self.fast_intersect(&mut ray);
-
-                if ray.t < 10000000f32 {
-                    let normal = self.triangle_normal(ray.prim);
-                    let intensity = (dot(normal, normalize(Point::new(1f32, -1f32, 1f32))) + 1f32) / 10f32;
-
-                    [(intensity * 255f32) as u8, (intensity * 255f32) as u8, (intensity * 255f32) as u8, 255]
-                } else {
-                    [0, 0, 0, 255]
-                }
-            })
-            .collect_into_vec(screen_buffer);
     }
 }

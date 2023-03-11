@@ -56,7 +56,7 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                     texture_name: to_screen_texture_name,
                     pipeline: ToScreenPipeline::new(
                         &self.gpu_context.device,
-                        self.gpu_context.get_raw_texture(&to_screen_texture_name),
+                        self.gpu_context.get_raw_texture(to_screen_texture_name),
                         self.gpu_context.config.format,
                     ),
                 }),
@@ -77,7 +77,7 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
 
     fn dispatch_pipeline<PushConstants: Pod>(&mut self, pipeline_name: &'static str, execution_mode: Execution, push_constants: &PushConstants) {
         if !self.gpu_context.resources.contains_key(pipeline_name) {
-            self.gpu_context.init_pipeline(pipeline_name);
+            self.gpu_context.init_pipeline(pipeline_name).unwrap();
         }
 
         match self.gpu_context.resources.get(pipeline_name) {
@@ -120,7 +120,7 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
         };
     }
 
-    fn read_buffer<T: Pod>(&mut self, buffer_name: &'static str) -> ReadHandle {
+    fn read_buffer<T: Pod>(&mut self, _buffer_name: &'static str) -> ReadHandle {
         /*info!("reading buffer data from {}, with size of {} bytes", buffer_name, std::mem::size_of::<T>());
         match self.gpu_context.resources.get(buffer_name) {
             Some(GpuResource::Texture(_, _, _, _, _)) => panic!("{} is not a buffer but a texture", buffer_name),
