@@ -9,7 +9,7 @@ edition = "2021"
 winit = {version = "0.28", default-features = false}
 wgpu = {version = "0.15", default-features = false, features = ["spirv"]}
 num = {version = "0.4", default-features = false}
-pollster = {version = "0.2", default-features = false}
+pollster = {version = "0.3", default-features = false}
 bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
 inline-spirv = {version = "0.1", default-features = false, features = ["hlsl"]}
 futures-intrusive = "0.5"

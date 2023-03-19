@@ -24,6 +24,11 @@ impl ComputePipeline {
     ) -> Self {
         let shader: &[u32] = bytemuck::cast_slice(spirv);
 
+        let _ = gpu_context.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(pipeline_name),
+            source: wgpu::ShaderSource::SpirV(std::borrow::Cow::Borrowed(shader)),
+        });
+
         let cs_module = unsafe {
             gpu_context.device.create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
                 label: Some(pipeline_name),
@@ -100,6 +105,7 @@ impl ComputePipeline {
             module: &cs_module,
             entry_point: "main",
         });
+
         ComputePipeline { pipeline, bind_group }
     }
 }

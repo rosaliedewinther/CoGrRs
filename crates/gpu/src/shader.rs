@@ -1,6 +1,6 @@
 use crate::Execution;
 use anyhow::{anyhow, Result};
-use hassle_rs::compile_hlsl;
+use hassle_rs::{compile_hlsl, validate_dxil};
 use rspirv_reflect::{DescriptorType, Reflection};
 
 #[derive(Debug, Clone)]
@@ -22,6 +22,13 @@ impl Shader {
     pub fn get_shader_properties(shader_name: &str, shaders_folder: &str) -> Result<Shader> {
         let shader_file = shaders_folder.to_string() + shader_name + ".hlsl";
         let code = std::fs::read_to_string(&shader_file)?;
+
+        let dxil = compile_hlsl(&shader_file, &code, "main", "cs_6_5", &[], &[]).unwrap();
+        let result = validate_dxil(&dxil);
+
+        if let Some(err) = result.err() {
+            println!("validation failed: {}", err);
+        }
 
         let spirv = compile_hlsl(&shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
 
