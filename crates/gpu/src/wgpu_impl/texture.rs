@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use bytemuck::Pod;
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor, TextureViewDimension};
 
@@ -9,15 +10,16 @@ pub fn init_texture<T>(
     dims: (u32, u32, u32),
     format: wgpu::TextureFormat,
     data: Option<&[T]>,
-) -> (wgpu::Texture, wgpu::TextureView)
+) -> Result<(wgpu::Texture, wgpu::TextureView)>
 where
     T: Pod,
 {
     if dims.0 == 0 || dims.1 == 0 || dims.2 == 0 {
-        panic!(
+        Err(anyhow!(
             "dim size of texture: {} was incorrect namely: {:?}, every dimension must be at least 1",
-            texture_name, dims
-        )
+            texture_name,
+            dims
+        ))?
     }
 
     let texture_size = Extent3d {
@@ -71,5 +73,5 @@ where
         base_array_layer: 0,
         array_layer_count: None,
     });
-    (texture, texture_view)
+    Ok((texture, texture_view))
 }

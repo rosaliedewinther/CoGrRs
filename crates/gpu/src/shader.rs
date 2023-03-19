@@ -26,16 +26,11 @@ impl Shader {
         let spirv = compile_hlsl(&shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
 
         let reflector = Reflection::new_from_spirv(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;
-        let push_constant_size = match reflector
-            .get_push_constant_range()
-            .unwrap_or_else(|_| panic!("could not get push constant range from shader: {}", shader_file))
-        {
+        let push_constant_size = match reflector.get_push_constant_range().map_err(|val| anyhow!(val.to_string()))? {
             Some(p) => p.size,
             None => 0,
         };
-        let compute_group_sizes = reflector
-            .get_compute_group_size()
-            .unwrap_or_else(|| panic!("could not get compute group size from shader: {}", shader_file));
+        let compute_group_sizes = reflector.get_compute_group_size().unwrap_or((1, 1, 1));
 
         let bindings = reflector
             .get_descriptor_sets()

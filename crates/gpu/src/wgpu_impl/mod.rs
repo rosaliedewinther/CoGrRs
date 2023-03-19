@@ -12,7 +12,6 @@ use winit::event::WindowEvent;
 use winit::event_loop::EventLoop;
 use winit::window::Window;
 
-use core::panic;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -95,12 +94,12 @@ pub struct CoGrWGPU {
 impl CoGr for CoGrWGPU {
     type Encoder<'a> = EncoderWGPU<'a>;
 
-    fn new(window: &Arc<Window>, shaders_folder: &str, event_loop: &EventLoop<()>) -> Self {
+    fn new(window: &Arc<Window>, shaders_folder: &str, event_loop: &EventLoop<()>) -> Result<Self> {
         let instance = wgpu::Instance::new(InstanceDescriptor {
             backends: Backends::VULKAN,
             ..Default::default()
         });
-        let surface = unsafe { instance.create_surface(window.as_ref()).unwrap() };
+        let surface = unsafe { instance.create_surface(window.as_ref())? };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
@@ -121,14 +120,13 @@ impl CoGr for CoGrWGPU {
                 label: None,
             },
             None, // Trace path
-        ))
-        .expect("can't create device or command queue");
+        ))?;
         let formats = surface.get_capabilities(&adapter).formats;
         info!("supported swapchain surface formats: {:?}", formats);
         let surface_format = match (formats.contains(&Rgba8Unorm), formats.contains(&Bgra8Unorm)) {
             (true, _) => Rgba8Unorm,
             (_, true) => Bgra8Unorm,
-            _ => panic!("neither Rgba8Unorm nor Bgra8Unorm is supported"),
+            _ => Err(anyhow!("neither Rgba8Unorm nor Bgra8Unorm is supported"))?,
         };
 
         let config = wgpu::SurfaceConfiguration {
@@ -146,7 +144,7 @@ impl CoGr for CoGrWGPU {
         let context = egui::Context::default();
         let state = egui_winit::State::new(event_loop);
 
-        Self {
+        Ok(Self {
             surface,
             device,
             queue,
@@ -158,10 +156,10 @@ impl CoGr for CoGrWGPU {
             renderer,
             context,
             state,
-        }
+        })
     }
-    fn get_encoder_for_draw(&mut self) -> EncoderWGPU {
-        let surface_texture = self.surface.get_current_texture().expect("can't get new surface texture");
+    fn get_encoder_for_draw(&mut self) -> Result<EncoderWGPU> {
+        let surface_texture = self.surface.get_current_texture()?;
 
         let texture_view_config = wgpu::TextureViewDescriptor {
             format: Some(self.config.format),
@@ -174,24 +172,24 @@ impl CoGr for CoGrWGPU {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
         encoder.push_debug_group("user_encoder_for_draw");
-        EncoderWGPU {
+        Ok(EncoderWGPU {
             encoder: Some(encoder),
             gpu_context: self,
             encoder_type: EncoderType::Draw(Some(surface_texture), surface_texture_view),
-        }
+        })
     }
-    fn get_encoder(&mut self) -> EncoderWGPU {
+    fn get_encoder(&mut self) -> Result<EncoderWGPU> {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
         encoder.push_debug_group("user_encoder");
-        EncoderWGPU {
+        Ok(EncoderWGPU {
             encoder: Some(encoder),
             gpu_context: self,
             encoder_type: EncoderType::NonDraw,
-        }
+        })
     }
-    fn buffer<T>(&mut self, buffer_name: &'static str, number_of_elements: u32) {
+    fn buffer<T>(&mut self, buffer_name: &'static str, number_of_elements: u32) -> Result<()> {
         match self.resources.get(buffer_name) {
             Some(GpuResource::Buffer(_)) | None => {
                 self.resources.insert(
@@ -205,14 +203,15 @@ impl CoGr for CoGrWGPU {
                 );
             }
             val => {
-                panic!("{} is not a buffer but contains: {:?}", buffer_name, val);
+                Err(anyhow!("{} is not a buffer but contains: {:?}", buffer_name, val))?;
             }
         }
+        Ok(())
     }
-    fn texture(&mut self, texture_name: &'static str, number_of_elements: (u32, u32, u32), format: wgpu::TextureFormat) {
+    fn texture(&mut self, texture_name: &'static str, number_of_elements: (u32, u32, u32), format: wgpu::TextureFormat) -> Result<()> {
         match self.resources.get(texture_name) {
             Some(GpuResource::Texture(_)) | None => {
-                let (texture, texture_view) = init_texture::<()>(self, texture_name, number_of_elements, format, None);
+                let (texture, texture_view) = init_texture::<()>(self, texture_name, number_of_elements, format, None)?;
                 self.resources.insert(
                     texture_name.to_string(),
                     GpuResource::Texture(TextureDescriptor {
@@ -225,9 +224,10 @@ impl CoGr for CoGrWGPU {
                 );
             }
             val => {
-                panic!("{} is not a texture but contains: {:?}", texture_name, val);
+                Err(anyhow!("{} is not a texture but contains: {:?}", texture_name, val))?;
             }
         }
+        Ok(())
     }
 
     fn handle_window_event(&mut self, event: &WindowEvent) {
@@ -296,10 +296,10 @@ impl CoGrWGPU {
         );
         Ok(())
     }
-    fn get_raw_texture(&self, texture_name: &str) -> &wgpu::TextureView {
+    fn get_raw_texture(&self, texture_name: &str) -> Result<&wgpu::TextureView> {
         match self.resources.get(texture_name) {
-            Some(GpuResource::Texture(desc)) => &desc.texture_view,
-            val => panic!("{} is not a texture but contained: {:?}", texture_name, val),
+            Some(GpuResource::Texture(desc)) => Ok(&desc.texture_view),
+            val => Err(anyhow!("{} is not a texture but contained: {:?}", texture_name, val))?,
         }
     }
     pub fn log_state(&self) {

@@ -8,5 +8,8 @@ edition = "2021"
 [dependencies]
 gpu = {path = "crates/gpu"}
 window = {path = "crates/window"}
+
+[dev-dependencies]
 bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
 rayon = {version="1.6"}
+anyhow = "1.0"

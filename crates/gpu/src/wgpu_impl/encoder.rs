@@ -1,4 +1,4 @@
-use core::panic;
+use anyhow::{anyhow, Context, Result};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -30,25 +30,22 @@ pub struct EncoderWGPU<'a> {
 }
 
 impl<'a> CoGrEncoder for EncoderWGPU<'a> {
-    fn to_screen(&mut self, to_screen_texture_name: &'static str) {
+    fn to_screen(&mut self, to_screen_texture_name: &'static str) -> Result<()> {
+        let encoder = self.encoder.as_mut().context("encoder not available")?;
         let mut render_pass = match &self.encoder_type {
-            EncoderType::NonDraw => panic!("Tried to draw without using get_encoder_for_draw()"),
-            EncoderType::Draw(_, texture_view) => {
-                let encoder = self.encoder.as_mut().unwrap();
-
-                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Render Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: texture_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: true,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                })
-            }
+            EncoderType::NonDraw => Err(anyhow!("non draw encoder was used for to_screen rendering"))?,
+            EncoderType::Draw(_, texture_view) => encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: texture_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                })],
+                depth_stencil_attachment: None,
+            }),
         };
 
         let mut hasher = DefaultHasher::new();
@@ -65,7 +62,7 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                     texture_name: to_screen_texture_name,
                     pipeline: ToScreenPipeline::new(
                         &self.gpu_context.device,
-                        self.gpu_context.get_raw_texture(to_screen_texture_name),
+                        self.gpu_context.get_raw_texture(to_screen_texture_name)?,
                         self.gpu_context.config.format,
                     ),
                 }),
@@ -80,22 +77,21 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                 render_pass.set_index_buffer(desc.pipeline.index_buffer.slice(..), Uint16);
                 render_pass.draw_indexed(0..desc.pipeline.num_indices, 0, 0..1);
             }
-            val => panic!("{} was not a to screen pipeline but contained: {:?}", hash_str, val),
+            val => Err(anyhow!("{} was not a to screen pipeline but contained: {:?}", hash_str, val))?,
         }
+
+        Ok(())
     }
 
-    fn dispatch_pipeline<PushConstants: Pod>(&mut self, pipeline_name: &'static str, execution_mode: Execution, push_constants: &PushConstants) {
+    fn dispatch_pipeline<PushConstants: Pod>(&mut self, pipeline_name: &'static str, execution_mode: Execution, push_constants: &PushConstants) -> Result<()> {
         if !self.gpu_context.resources.contains_key(pipeline_name) {
-            self.gpu_context.init_pipeline(pipeline_name).unwrap();
+            self.gpu_context.init_pipeline(pipeline_name)?;
         }
+        let encoder = self.encoder.as_mut().context("encoder not available")?;
 
         match self.gpu_context.resources.get(pipeline_name) {
             Some(GpuResource::Pipeline(desc)) => {
-                let mut compute_pass = self
-                    .encoder
-                    .as_mut()
-                    .unwrap()
-                    .begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(pipeline_name) });
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(pipeline_name) });
                 let exec_dims = get_execution_dims(
                     desc.workgroup_size,
                     execution_mode,
@@ -106,12 +102,14 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                 compute_pass.set_push_constants(0, bytemuck::bytes_of(push_constants));
                 compute_pass.dispatch_workgroups(exec_dims.0, exec_dims.1, exec_dims.2);
             }
-            val => panic!("{} was not a pipeline but contained: {:?}", pipeline_name, val),
+            val => Err(anyhow!("{} was not a pipeline but contained: {:?}", pipeline_name, val))?,
         }
+        Ok(())
     }
 
-    fn set_buffer_data<T: Pod>(&mut self, buffer_name: &'static str, data: &[T]) {
+    fn set_buffer_data<T: Pod>(&mut self, buffer_name: &'static str, data: &[T]) -> Result<()> {
         info!("writing buffer data to {}, from buffer with {} elements", buffer_name, data.len(),);
+        let encoder = self.encoder.as_mut().context("encoder not available")?;
         match self.gpu_context.resources.get(buffer_name) {
             Some(GpuResource::Buffer(desc)) => {
                 let uploading_buffer = self.gpu_context.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -120,16 +118,14 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                     usage: wgpu::BufferUsages::COPY_SRC,
                 });
 
-                self.encoder
-                    .as_mut()
-                    .unwrap()
-                    .copy_buffer_to_buffer(&uploading_buffer, 0, &desc.buffer, 0, (data.len() * std::mem::size_of::<T>()) as u64);
+                encoder.copy_buffer_to_buffer(&uploading_buffer, 0, &desc.buffer, 0, (data.len() * std::mem::size_of::<T>()) as u64);
             }
-            val => panic!("{} was not a buffer but contained: {:?}", buffer_name, val),
+            val => Err(anyhow!("{} was not a buffer but contained: {:?}", buffer_name, val))?,
         };
+        Ok(())
     }
 
-    fn read_buffer<T: Pod>(&mut self, _buffer_name: &'static str) -> ReadHandle {
+    fn read_buffer<T: Pod>(&mut self, _buffer_name: &'static str) -> Result<ReadHandle> {
         /*info!("reading buffer data from {}, with size of {} bytes", buffer_name, std::mem::size_of::<T>());
         match self.gpu_context.resources.get(buffer_name) {
             Some(GpuResource::Texture(_, _, _, _, _)) => panic!("{} is not a buffer but a texture", buffer_name),
@@ -171,12 +167,13 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
         todo!()
     }
 
-    fn set_texture_data<T: Pod>(&mut self, texture_name: &'static str, data: &[T]) {
+    fn set_texture_data<T: Pod>(&mut self, texture_name: &'static str, data: &[T]) -> Result<()> {
         info!(
             "writing texture data to {}, the data source has size {}",
             texture_name,
             data.len() * std::mem::size_of::<T>()
         );
+        let encoder = self.encoder.as_mut().context("encoder not available")?;
         match self.gpu_context.resources.get(texture_name) {
             Some(GpuResource::Texture(desc)) => {
                 let bytes_per_pixel = desc.format.describe().block_size;
@@ -189,8 +186,8 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                     );
                 }
 
-                let (texture, _) = init_texture(self.gpu_context, "copy_texture", desc.size, desc.format, Some(data));
-                self.encoder.as_mut().unwrap().copy_texture_to_texture(
+                let (texture, _) = init_texture(self.gpu_context, "copy_texture", desc.size, desc.format, Some(data))?;
+                encoder.copy_texture_to_texture(
                     ImageCopyTexture {
                         texture: &texture,
                         mip_level: 0,
@@ -210,16 +207,18 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                     },
                 );
             }
-            val => panic!("{} was not a texture but contained: {:?}", texture_name, val),
+            val => Err(anyhow!("{} was not a texture but contained: {:?}", texture_name, val))?,
         };
+        Ok(())
     }
 
-    fn read_texture<T: Pod>(&mut self, _texture_name: &'static str) -> WGPUReadhandle {
+    fn read_texture<T: Pod>(&mut self, _texture_name: &'static str) -> Result<WGPUReadhandle> {
         todo!()
     }
 
-    fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context)) {
+    fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context)) -> Result<()> {
         let ctx = &mut self.gpu_context;
+        let encoder = self.encoder.as_mut().context("encoder not available")?;
 
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [ctx.config.width, ctx.config.height],
@@ -234,13 +233,12 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
             for d in tdelta.set {
                 ctx.renderer.update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
             }
-            ctx.renderer
-                .update_buffers(&ctx.device, &ctx.queue, self.encoder.as_mut().unwrap(), &paint_jobs, &screen_descriptor);
+            ctx.renderer.update_buffers(&ctx.device, &ctx.queue, encoder, &paint_jobs, &screen_descriptor);
 
             match &self.encoder_type {
-                EncoderType::NonDraw => panic!("Tried to draw without using get_encoder_for_draw()"),
+                EncoderType::NonDraw => Err(anyhow!("Tried to draw without using get_encoder_for_draw()"))?,
                 EncoderType::Draw(_, texture_view) => {
-                    let mut render_pass = self.encoder.as_mut().unwrap().begin_render_pass(&RenderPassDescriptor {
+                    let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                             view: texture_view,
                             resolve_target: None,
@@ -255,6 +253,7 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                 }
             }
         }
+        Ok(())
     }
 }
 

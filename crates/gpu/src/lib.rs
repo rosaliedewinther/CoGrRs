@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::sync::Arc;
 
 use bytemuck::Pod;
@@ -19,23 +20,23 @@ pub trait CoGrReadHandle {
 }
 
 pub trait CoGrEncoder {
-    fn dispatch_pipeline<PushConstants: Pod>(&mut self, pipeline_name: &'static str, execution_mode: Execution, push_constants: &PushConstants);
-    fn to_screen(&mut self, texture_name: &'static str);
-    fn set_buffer_data<T: Pod>(&mut self, buffer_name: &'static str, data: &[T]);
-    fn read_buffer<T: Pod>(&mut self, buffer_name: &'static str) -> ReadHandle;
-    fn set_texture_data<T: Pod>(&mut self, texture_name: &'static str, data: &[T]);
-    fn read_texture<T: Pod>(&mut self, texture_name: &'static str) -> ReadHandle;
-    fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context));
+    fn dispatch_pipeline<PushConstants: Pod>(&mut self, pipeline_name: &'static str, execution_mode: Execution, push_constants: &PushConstants) -> Result<()>;
+    fn to_screen(&mut self, texture_name: &'static str) -> Result<()>;
+    fn set_buffer_data<T: Pod>(&mut self, buffer_name: &'static str, data: &[T]) -> Result<()>;
+    fn read_buffer<T: Pod>(&mut self, buffer_name: &'static str) -> Result<ReadHandle>;
+    fn set_texture_data<T: Pod>(&mut self, texture_name: &'static str, data: &[T]) -> Result<()>;
+    fn read_texture<T: Pod>(&mut self, texture_name: &'static str) -> Result<ReadHandle>;
+    fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context)) -> Result<()>;
 }
-pub trait CoGr {
+pub trait CoGr: Sized {
     type Encoder<'a>
     where
         Self: 'a;
-    fn new(window: &Arc<Window>, shaders_folder: &str, event_loop: &EventLoop<()>) -> Self;
-    fn get_encoder_for_draw(&mut self) -> Self::Encoder<'_>;
-    fn get_encoder(&mut self) -> Self::Encoder<'_>;
-    fn buffer<Type>(&mut self, buffer_name: &'static str, number_of_elements: u32);
-    fn texture(&mut self, texture_name: &'static str, number_of_elements: (u32, u32, u32), format: TextureFormat);
+    fn new(window: &Arc<Window>, shaders_folder: &str, event_loop: &EventLoop<()>) -> Result<Self>;
+    fn get_encoder_for_draw(&mut self) -> Result<Self::Encoder<'_>>;
+    fn get_encoder(&mut self) -> Result<Self::Encoder<'_>>;
+    fn buffer<Type>(&mut self, buffer_name: &'static str, number_of_elements: u32) -> Result<()>;
+    fn texture(&mut self, texture_name: &'static str, number_of_elements: (u32, u32, u32), format: TextureFormat) -> Result<()>;
     fn handle_window_event(&mut self, event: &WindowEvent);
 }
 

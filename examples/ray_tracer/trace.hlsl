@@ -24,10 +24,6 @@ struct Triangle
     float4 p4;
 };
 
-RWTexture2D<unorm float4> to_draw_texture;
-StructuredBuffer<Triangle> triangles;
-StructuredBuffer<BVHNode> bvh_nodes;
-
 struct GpuData
 {
     float4 camera_dir;
@@ -44,6 +40,9 @@ struct GpuData
     uint padding3;
 };
 
+RWTexture2D<unorm float4> to_draw_texture;
+StructuredBuffer<Triangle> triangles;
+StructuredBuffer<BVHNode> bvh_nodes;
 [[vk::push_constant]] GpuData gpu_data;
 
 #define FLT_MAX 3.402823466e+38
@@ -247,16 +246,6 @@ float4 triangle_normal(uint triangle_id)
     float4 dirr = 1 / dir;
     float t = FLT_MAX;
     uint prim = -1;
-
-    /*for (int i = 0; i < 6320; i++){
-        intersect_ray_triangle(
-            gpu_data.camera_pos,
-            dir,
-            t,
-            prim,
-            i
-        );
-    }*/
 
     traverse(
         gpu_data.camera_pos,

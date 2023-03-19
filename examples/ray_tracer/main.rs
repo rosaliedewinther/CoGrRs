@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::bvh::{cross, BVHNode};
+use anyhow::Result;
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
 use gpu::wgpu::TextureFormat::Rgba8Uint;
@@ -10,7 +11,7 @@ use window::winit::event::WindowEvent;
 use window::winit::event_loop::EventLoop;
 use window::{
     input::Input,
-    main_loop::{main_loop_run, Game, RenderResult},
+    main_loop::{main_loop_run, Game},
     winit::window::Window,
 };
 
@@ -45,31 +46,31 @@ const HEIGHT: u32 = 720;
 const HALF_HEIGHT: u32 = HEIGHT / 2;
 
 impl Game for RayTracer {
-    fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Self {
-        let mut gpu_context = Renderer::new(window, "examples/ray_tracer/", event_loop);
+    fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
+        let mut gpu_context = Renderer::new(window, "examples/ray_tracer/", event_loop)?;
 
         let mut bvh = Bvh::new("examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
 
-        gpu_context.texture("to_draw_texture", (WIDTH, HEIGHT, 1), gpu_context.config.format);
-        gpu_context.texture("depth", (WIDTH, HEIGHT, 1), Rgba8Uint);
-        gpu_context.buffer::<[Point; 4]>("triangles", bvh.triangles.len() as u32);
-        gpu_context.buffer::<BVHNode>("bvh_nodes", bvh.bvh_nodes.len() as u32);
+        gpu_context.texture("to_draw_texture", (WIDTH, HEIGHT, 1), gpu_context.config.format)?;
+        gpu_context.texture("depth", (WIDTH, HEIGHT, 1), Rgba8Uint)?;
+        gpu_context.buffer::<[Point; 4]>("triangles", bvh.triangles.len() as u32)?;
+        gpu_context.buffer::<BVHNode>("bvh_nodes", bvh.bvh_nodes.len() as u32)?;
 
         {
-            let mut encoder = gpu_context.get_encoder();
-            encoder.set_buffer_data::<[Point; 4]>("triangles", bvh.triangles.as_slice());
-            encoder.set_buffer_data::<BVHNode>("bvh_nodes", bvh.bvh_nodes.as_slice());
+            let mut encoder = gpu_context.get_encoder()?;
+            encoder.set_buffer_data::<[Point; 4]>("triangles", bvh.triangles.as_slice())?;
+            encoder.set_buffer_data::<BVHNode>("bvh_nodes", bvh.bvh_nodes.as_slice())?;
         }
 
-        RayTracer {
+        Ok(RayTracer {
             gpu_context,
             time: 0f32,
             distance: -1f32,
-        }
+        })
     }
 
-    fn on_render(&mut self, input: &mut Input, dt: f32) -> RenderResult {
+    fn on_render(&mut self, input: &mut Input, dt: f32) -> Result<()> {
         self.time += dt;
         self.distance += input.mouse_state.scroll_delta;
 
@@ -93,24 +94,28 @@ impl Game for RayTracer {
             padding3: 0,
         };
 
-        let mut encoder = self.gpu_context.get_encoder_for_draw();
-        encoder.dispatch_pipeline("trace", PerPixel2D, &camera_data);
-        encoder.to_screen("to_draw_texture");
+        let mut encoder = self.gpu_context.get_encoder_for_draw()?;
+        encoder.dispatch_pipeline("trace", PerPixel2D, &camera_data)?;
+        encoder.to_screen("to_draw_texture")?;
         encoder.draw_ui(|ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
                 ui.label(format!("ms: {}", dt * 1000f32));
             });
-        });
+        })?;
 
-        RenderResult::Continue
+        Ok(())
     }
 
-    fn on_tick(&mut self, _dt: f32) {}
-    fn on_window_event(&mut self, event: &WindowEvent) {
+    fn on_tick(&mut self, _dt: f32) -> Result<()> {
+        Ok(())
+    }
+    fn on_window_event(&mut self, event: &WindowEvent) -> Result<()> {
         self.gpu_context.handle_window_event(event);
+        Ok(())
     }
 }
 
-fn main() {
-    main_loop_run::<RayTracer>(WIDTH, HEIGHT, 10f32);
+fn main() -> Result<()> {
+    main_loop_run::<RayTracer>(WIDTH, HEIGHT, 10f32)?;
+    Ok(())
 }
