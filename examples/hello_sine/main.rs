@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bytemuck::{Pod, Zeroable};
 use gpu::Execution::PerPixel2D;
 use gpu::{CoGr, CoGrEncoder, Renderer};
@@ -20,13 +22,13 @@ struct GpuData {
 }
 
 impl Game for HelloSine {
-    fn on_init(window: &Window, _event_loop: &EventLoop<()>) -> Self {
-        let mut gpu_context = Renderer::new(window, "examples/hello_sine/");
+    fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Self {
+        let mut gpu_context = Renderer::new(window, "examples/hello_sine/", event_loop);
         gpu_context.texture("to_draw_texture", (1280, 720, 1), gpu_context.config.format);
         HelloSine { gpu_context, time: 0f32 }
     }
 
-    fn on_render(&mut self, _input: &mut Input, dt: f32, _window: &Window) -> RenderResult {
+    fn on_render(&mut self, _input: &mut Input, dt: f32) -> RenderResult {
         let mut encoder = self.gpu_context.get_encoder_for_draw();
 
         self.time += dt;
@@ -37,7 +39,6 @@ impl Game for HelloSine {
         RenderResult::Continue
     }
 
-    fn on_resize(&mut self, _new_size: (u32, u32)) {}
     fn on_tick(&mut self, _dt: f32) {}
     fn on_window_event(&mut self, _event: &window::winit::event::WindowEvent) {}
 }

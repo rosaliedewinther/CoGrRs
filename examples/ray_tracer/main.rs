@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use crate::bvh::{cross, BVHNode};
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
 use gpu::wgpu::TextureFormat::Rgba8Uint;
 use gpu::Execution::PerPixel2D;
-use gpu::{CoGr, CoGrEncoder, Renderer, Ui, UI};
+use gpu::{egui, CoGr, CoGrEncoder, Renderer};
 use window::winit::event::WindowEvent;
 use window::winit::event_loop::EventLoop;
 use window::{
@@ -16,7 +18,6 @@ mod bvh;
 
 struct RayTracer {
     pub gpu_context: Renderer,
-    pub ui: Ui,
     pub time: f32,
     pub distance: f32,
 }
@@ -44,13 +45,12 @@ const HEIGHT: u32 = 720;
 const HALF_HEIGHT: u32 = HEIGHT / 2;
 
 impl Game for RayTracer {
-    fn on_init(window: &Window, event_loop: &EventLoop<()>) -> Self {
-        let mut gpu_context = Renderer::new(window, "examples/ray_tracer/");
+    fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Self {
+        let mut gpu_context = Renderer::new(window, "examples/ray_tracer/", event_loop);
 
         let mut bvh = Bvh::new("examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
 
-        let ui = Ui::new(&gpu_context, window, event_loop);
         gpu_context.texture("to_draw_texture", (WIDTH, HEIGHT, 1), gpu_context.config.format);
         gpu_context.texture("depth", (WIDTH, HEIGHT, 1), Rgba8Uint);
         gpu_context.buffer::<[Point; 4]>("triangles_block", bvh.triangles.len() as u32);
@@ -64,13 +64,12 @@ impl Game for RayTracer {
 
         RayTracer {
             gpu_context,
-            ui,
             time: 0f32,
             distance: -1f32,
         }
     }
 
-    fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult {
+    fn on_render(&mut self, input: &mut Input, dt: f32) -> RenderResult {
         self.time += dt;
         self.distance += input.mouse_state.scroll_delta;
 
@@ -97,17 +96,18 @@ impl Game for RayTracer {
         let mut encoder = self.gpu_context.get_encoder_for_draw();
         encoder.dispatch_pipeline("trace", PerPixel2D, &camera_data);
         encoder.to_screen("to_draw_texture");
-        self.ui.draw(&mut encoder, window, |ui| {
-            ui.label(format!("ms: {}", dt * 1000f32));
+        encoder.draw_ui(|ctx| {
+            egui::Window::new("debug").show(ctx, |ui| {
+                ui.label(format!("ms: {}", dt * 1000f32));
+            });
         });
 
         RenderResult::Continue
     }
 
-    fn on_resize(&mut self, _new_size: (u32, u32)) {}
     fn on_tick(&mut self, _dt: f32) {}
     fn on_window_event(&mut self, event: &WindowEvent) {
-        self.ui.handle_window_event(event);
+        self.gpu_context.handle_window_event(event);
     }
 }
 

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Instant;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{Event, WindowEvent};
@@ -12,10 +13,9 @@ pub enum RenderResult {
 }
 
 pub trait Game {
-    fn on_init(window: &Window, event_loop: &EventLoop<()>) -> Self;
+    fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Self;
     fn on_tick(&mut self, dt: f32);
-    fn on_render(&mut self, input: &mut Input, dt: f32, window: &Window) -> RenderResult;
-    fn on_resize(&mut self, new_size: (u32, u32));
+    fn on_render(&mut self, input: &mut Input, dt: f32) -> RenderResult;
     fn on_window_event(&mut self, event: &WindowEvent);
 }
 
@@ -27,7 +27,7 @@ where
     let window_builder = WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(window_width, window_height))
         .with_resizable(false);
-    let window = window_builder.build(&event_loop).expect("unable to build window");
+    let window = Arc::new(window_builder.build(&event_loop).expect("unable to build window"));
     let mut game = T::on_init(&window, &event_loop);
     let mut window_input = Input::new();
     let mut on_tick_timer = Instant::now();
@@ -59,12 +59,6 @@ where
                     window_input.update_keyboard_input(input, control_flow);
                 }
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::Resized(physical_size) => {
-                    game.on_resize((physical_size.width, physical_size.height));
-                }
-                WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                    game.on_resize((new_inner_size.width, new_inner_size.height));
-                }
 
                 _ => {}
             }
@@ -72,7 +66,7 @@ where
         Event::RedrawRequested(_) => {
             let dt = on_render_timer.elapsed().as_secs_f32();
             on_render_timer = Instant::now();
-            match game.on_render(&mut window_input, dt, &window) {
+            match game.on_render(&mut window_input, dt) {
                 RenderResult::Continue => {
                     window_input.update();
                 }

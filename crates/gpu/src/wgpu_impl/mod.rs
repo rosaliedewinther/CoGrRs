@@ -1,16 +1,20 @@
 use crate::wgpu_impl::compute_pipeline::TextureOrBuffer;
 use anyhow::anyhow;
 use anyhow::Result;
+use egui_winit::State;
 use wgpu::Backends;
 use wgpu::Buffer;
 use wgpu::InstanceDescriptor;
 use wgpu::TextureFormat;
 use wgpu::{Texture, TextureView};
+use winit::event::WindowEvent;
+use winit::event_loop::EventLoop;
 use winit::window::Window;
 
 use core::panic;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use wgpu::TextureFormat::{Bgra8Unorm, Rgba8Unorm};
 
@@ -21,6 +25,7 @@ use crate::CoGr;
 
 use self::buffer::init_storage_buffer;
 use self::compute_pipeline::ComputePipeline;
+use self::encoder::EncoderType;
 use self::encoder::EncoderWGPU;
 use self::texture::init_texture;
 use self::to_screen_pipeline::ToScreenPipeline;
@@ -31,7 +36,6 @@ pub(crate) mod encoder;
 pub(crate) mod read_handle;
 mod texture;
 mod to_screen_pipeline;
-pub(crate) mod ui;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -77,19 +81,25 @@ pub struct CoGrWGPU {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
+    window: Arc<Window>,
     resources: HashMap<String, GpuResource>,
     shaders_folder: String,
+
+    // ui
+    context: egui::Context,
+    renderer: egui_wgpu::Renderer,
+    state: State,
 }
 
 impl CoGr for CoGrWGPU {
     type Encoder<'a> = EncoderWGPU<'a>;
 
-    fn new(window: &Window, shaders_folder: &str) -> Self {
+    fn new(window: &Arc<Window>, shaders_folder: &str, event_loop: &EventLoop<()>) -> Self {
         let instance = wgpu::Instance::new(InstanceDescriptor {
             backends: Backends::VULKAN,
             ..Default::default()
         });
-        let surface = unsafe { instance.create_surface(window).unwrap() };
+        let surface = unsafe { instance.create_surface(window.as_ref()).unwrap() };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
@@ -131,13 +141,22 @@ impl CoGr for CoGrWGPU {
         };
         surface.configure(&device, &config);
 
+        let renderer = egui_wgpu::renderer::Renderer::new(&device, config.format, None, 1);
+        let context = egui::Context::default();
+        let state = egui_winit::State::new(event_loop);
+
         Self {
             surface,
             device,
             queue,
             config,
+            window: window.clone(),
             resources: Default::default(),
             shaders_folder: shaders_folder.to_string(),
+
+            renderer,
+            context,
+            state,
         }
     }
     fn get_encoder_for_draw(&mut self) -> EncoderWGPU {
@@ -157,8 +176,7 @@ impl CoGr for CoGrWGPU {
         EncoderWGPU {
             encoder: Some(encoder),
             gpu_context: self,
-            surface_texture: Some(surface_texture),
-            surface_texture_view: Some(surface_texture_view),
+            encoder_type: EncoderType::Draw(Some(surface_texture), surface_texture_view),
         }
     }
     fn get_encoder(&mut self) -> EncoderWGPU {
@@ -169,8 +187,7 @@ impl CoGr for CoGrWGPU {
         EncoderWGPU {
             encoder: Some(encoder),
             gpu_context: self,
-            surface_texture: None,
-            surface_texture_view: None,
+            encoder_type: EncoderType::NonDraw,
         }
     }
     fn buffer<T>(&mut self, buffer_name: &'static str, number_of_elements: u32) {
@@ -210,6 +227,10 @@ impl CoGr for CoGrWGPU {
                 panic!("{} is not a texture but contains: {:?}", texture_name, val);
             }
         }
+    }
+
+    fn handle_window_event(&mut self, event: &WindowEvent) {
+        let _ = self.state.on_event(&self.context, event);
     }
 }
 impl CoGrWGPU {

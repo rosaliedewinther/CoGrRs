@@ -5,10 +5,11 @@ use std::hash::{Hash, Hasher};
 use crate::shader::get_execution_dims;
 use crate::{Execution, ReadHandle};
 use bytemuck::Pod;
+use egui_wgpu::renderer::ScreenDescriptor;
 use log::info;
 use wgpu::util::DeviceExt;
 use wgpu::IndexFormat::Uint16;
-use wgpu::{CommandEncoder, Extent3d, ImageCopyTexture, SurfaceTexture, TextureView};
+use wgpu::{CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView};
 
 use crate::wgpu_impl::texture::init_texture;
 use crate::CoGrEncoder;
@@ -17,30 +18,38 @@ use super::read_handle::WGPUReadhandle;
 use super::to_screen_pipeline::ToScreenPipeline;
 use super::{CoGrWGPU, GpuResource, ToScreenPipelineDescriptor};
 
+pub enum EncoderType {
+    Draw(Option<SurfaceTexture>, TextureView),
+    NonDraw,
+}
+
 pub struct EncoderWGPU<'a> {
-    pub encoder: Option<CommandEncoder>,
-    pub gpu_context: &'a mut CoGrWGPU,
-    pub surface_texture: Option<SurfaceTexture>,
-    pub surface_texture_view: Option<TextureView>,
+    pub(crate) encoder: Option<CommandEncoder>,
+    pub(crate) gpu_context: &'a mut CoGrWGPU,
+    pub(crate) encoder_type: EncoderType,
 }
 
 impl<'a> CoGrEncoder for EncoderWGPU<'a> {
     fn to_screen(&mut self, to_screen_texture_name: &'static str) {
-        let surface_texture_view = self.surface_texture_view.as_ref().expect("there is no surface texture view");
-        let encoder = self.encoder.as_mut().unwrap();
+        let mut render_pass = match &self.encoder_type {
+            EncoderType::NonDraw => panic!("Tried to draw without using get_encoder_for_draw()"),
+            EncoderType::Draw(_, texture_view) => {
+                let encoder = self.encoder.as_mut().unwrap();
 
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: surface_texture_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            })],
-            depth_stencil_attachment: None,
-        });
+                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: texture_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: true,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                })
+            }
+        };
 
         let mut hasher = DefaultHasher::new();
         to_screen_texture_name.as_bytes().hash(&mut hasher);
@@ -208,25 +217,60 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
     fn read_texture<T: Pod>(&mut self, _texture_name: &'static str) -> WGPUReadhandle {
         todo!()
     }
+
+    fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context)) {
+        let ctx = &mut self.gpu_context;
+
+        let screen_descriptor = ScreenDescriptor {
+            size_in_pixels: [ctx.config.width, ctx.config.height],
+            pixels_per_point: 1f32,
+        };
+        let full_output = ctx.context.run(ctx.state.take_egui_input(ctx.window.as_ref()), |ctx| ui_builder(ctx));
+
+        let paint_jobs = ctx.context.tessellate(full_output.shapes);
+        let tdelta = full_output.textures_delta;
+
+        {
+            for d in tdelta.set {
+                ctx.renderer.update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
+            }
+            ctx.renderer
+                .update_buffers(&ctx.device, &ctx.queue, self.encoder.as_mut().unwrap(), &paint_jobs, &screen_descriptor);
+
+            match &self.encoder_type {
+                EncoderType::NonDraw => panic!("Tried to draw without using get_encoder_for_draw()"),
+                EncoderType::Draw(_, texture_view) => {
+                    let mut render_pass = self.encoder.as_mut().unwrap().begin_render_pass(&RenderPassDescriptor {
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: texture_view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: true,
+                            },
+                        })],
+                        ..Default::default()
+                    });
+                    ctx.renderer.render(&mut render_pass, paint_jobs.as_slice(), &screen_descriptor);
+                }
+            }
+        }
+    }
 }
 
 impl<'a> Drop for EncoderWGPU<'a> {
     fn drop(&mut self) {
-        match (&mut self.encoder, &mut self.surface_texture, &self.surface_texture_view) {
-            (encoder, surface_texture, surface_texture_view) if encoder.is_some() && surface_texture.is_some() && surface_texture_view.is_some() => {
-                encoder.as_mut().unwrap().pop_debug_group();
-                self.gpu_context.queue.submit(std::iter::once(encoder.take().unwrap().finish()));
-                let surface = surface_texture.take().unwrap();
+        match &mut self.encoder_type {
+            EncoderType::Draw(texture, _) => {
+                self.encoder.as_mut().unwrap().pop_debug_group();
+                self.gpu_context.queue.submit(std::iter::once(self.encoder.take().unwrap().finish()));
+                let surface = texture.take().unwrap();
                 surface.present();
             }
-            (encoder, surface_texture, _) if encoder.is_some() && surface_texture.is_none() => {
-                encoder.as_mut().unwrap().pop_debug_group();
-                self.gpu_context.queue.submit(std::iter::once(encoder.take().unwrap().finish()));
+            EncoderType::NonDraw => {
+                self.encoder.as_mut().unwrap().pop_debug_group();
+                self.gpu_context.queue.submit(std::iter::once(self.encoder.take().unwrap().finish()));
             }
-            (encoder, _, _) if encoder.is_none() => {
-                panic!("encoder is none while that should be impossbile");
-            }
-            (_, _, _) => panic!("impossible state"),
         }
     }
 }
