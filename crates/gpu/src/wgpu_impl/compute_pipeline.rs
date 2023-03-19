@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use wgpu::StorageTextureAccess;
 
 use super::{BufferDescriptor, CoGrWGPU, TextureDescriptor};
@@ -20,14 +18,16 @@ impl ComputePipeline {
     pub(crate) fn new(
         gpu_context: &CoGrWGPU,
         pipeline_name: &str,
-        spirv: &[u32],
+        spirv: &[u8],
         buffers: &[TextureOrBuffer], // buffer and read only flag
-        push_constant_range: Option<Range<u32>>,
+        push_constant_size: Option<u32>,
     ) -> Self {
+        let shader: &[u32] = bytemuck::cast_slice(spirv);
+
         let cs_module = unsafe {
             gpu_context.device.create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
                 label: Some(pipeline_name),
-                source: std::borrow::Cow::Borrowed(spirv),
+                source: std::borrow::Cow::Borrowed(shader),
             })
         };
 
@@ -81,10 +81,10 @@ impl ComputePipeline {
 
         let mut push_constant_range_vec = Vec::new();
 
-        if let Some(range) = push_constant_range {
+        if let Some(size) = push_constant_size {
             push_constant_range_vec.push(wgpu::PushConstantRange {
                 stages: wgpu::ShaderStages::COMPUTE,
-                range,
+                range: 0..size,
             })
         };
 

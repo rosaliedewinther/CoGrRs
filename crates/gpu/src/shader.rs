@@ -1,64 +1,61 @@
-use inline_spirv_runtime::{ShaderCompilationConfig, ShaderKind};
-use regex::Regex;
-use rspirv_reflect::PushConstantInfo;
-
 use crate::Execution;
+use anyhow::{anyhow, Result};
+use hassle_rs::compile_hlsl;
+use rspirv_reflect::{DescriptorType, Reflection};
 
-pub struct Shader {
-    pub config: ShaderCompilationConfig,
-    pub shader: Vec<u32>,
-    pub push_constant_info: PushConstantInfo,
+#[derive(Debug, Clone)]
+pub(crate) struct Binding {
+    pub name: String,
+    pub binding_type: DescriptorType,
+}
+
+pub(crate) struct Shader {
+    pub shader: Vec<u8>,
+    pub push_constant_size: u32,
     pub cg_x: u32, //compute group size x
     pub cg_y: u32,
     pub cg_z: u32,
-    pub bindings: Vec<String>,
+    pub bindings: Vec<Binding>,
 }
 
 impl Shader {
-    pub fn get_shader_properties(shader_name: &str, shaders_folder: &str) -> Shader {
-        let mut config = inline_spirv_runtime::ShaderCompilationConfig::default();
-        config.debug = true;
-        config.kind = ShaderKind::Compute;
-        let shader_file = shaders_folder.to_string() + shader_name + ".comp";
+    pub fn get_shader_properties(shader_name: &str, shaders_folder: &str) -> Result<Shader> {
+        let shader_file = shaders_folder.to_string() + shader_name + ".hlsl";
+        let code = std::fs::read_to_string(&shader_file)?;
 
-        let shader_vec: Vec<u32> = inline_spirv_runtime::runtime_compile(
-            &std::fs::read_to_string(&shader_file).unwrap_or_else(|_| panic!("Could not find {}", shader_file)),
-            Some(&(shader_file)),
-            &config,
-        )
-        .map_err(|e| println!("{}", e))
-        .unwrap_or_else(|_| panic!("could not compile shader: {}", shader_file));
+        let spirv = compile_hlsl(&shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
 
-        let shader: &[u8] = unsafe { std::slice::from_raw_parts(shader_vec.as_ptr() as *const u8, shader_vec.len() * 4) };
-        let reflector = rspirv_reflect::Reflection::new_from_spirv(shader).unwrap_or_else(|_| panic!("could not reflect shader: {}", shader_file));
-        let push_constant_info = match reflector
+        let reflector = Reflection::new_from_spirv(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;
+        let push_constant_size = match reflector
             .get_push_constant_range()
             .unwrap_or_else(|_| panic!("could not get push constant range from shader: {}", shader_file))
         {
-            Some(p) => p,
-            None => PushConstantInfo { offset: 0, size: 0 },
+            Some(p) => p.size,
+            None => 0,
         };
         let compute_group_sizes = reflector
             .get_compute_group_size()
             .unwrap_or_else(|| panic!("could not get compute group size from shader: {}", shader_file));
 
-        let text = reflector.disassemble();
+        let bindings = reflector
+            .get_descriptor_sets()
+            .map_err(|val| anyhow!(val.to_string()))?
+            .into_iter()
+            .flat_map(|val| val.1)
+            .map(|val| Binding {
+                name: val.1.name,
+                binding_type: val.1.ty,
+            })
+            .collect::<Vec<Binding>>();
 
-        let re = Regex::new(r"buffer [^\s\\]*_block|(([ui]*image3D|[ui]*image2D|[ui]*image1D) [a-z_A-Z]*)").expect("somehow couldnt compile regex");
-        let bindings: Vec<String> = re
-            .find_iter(&text)
-            .map(|val| val.as_str().split(' ').collect::<Vec<&str>>()[1].to_string())
-            .collect::<Vec<String>>();
-
-        Shader {
-            config,
-            shader: shader_vec,
+        Ok(Shader {
+            shader: spirv,
             cg_x: compute_group_sizes.0,
             cg_y: compute_group_sizes.1,
             cg_z: compute_group_sizes.2,
             bindings,
-            push_constant_info,
-        }
+            push_constant_size,
+        })
     }
 }
 

@@ -11,7 +11,7 @@ wgpu = {version = "0.15", default-features = false, features = ["spirv"]}
 num = {version = "0.4", default-features = false}
 pollster = {version = "0.2", default-features = false}
 bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
-inline-spirv = {version = "0.1", default-features = false, features = ["glsl"]}
+inline-spirv = {version = "0.1", default-features = false, features = ["hlsl"]}
 futures-intrusive = "0.5"
 inline-spirv-runtime = {git="https://github.com/jasperdewinther/inline-spirv-rs/", rev="efa57ed"}
 log = {version = "0.4", default-features = false}
@@ -20,6 +20,7 @@ fxhash = "0.2"
 serde_yaml = "0.9"
 regex = "1.7"
 anyhow = "1.0"
+hassle-rs = "0.10"
 
 egui = "0.21"
 egui-wgpu = "0.21"

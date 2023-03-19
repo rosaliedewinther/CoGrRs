@@ -53,13 +53,13 @@ impl Game for RayTracer {
 
         gpu_context.texture("to_draw_texture", (WIDTH, HEIGHT, 1), gpu_context.config.format);
         gpu_context.texture("depth", (WIDTH, HEIGHT, 1), Rgba8Uint);
-        gpu_context.buffer::<[Point; 4]>("triangles_block", bvh.triangles.len() as u32);
-        gpu_context.buffer::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.len() as u32);
+        gpu_context.buffer::<[Point; 4]>("triangles", bvh.triangles.len() as u32);
+        gpu_context.buffer::<BVHNode>("bvh_nodes", bvh.bvh_nodes.len() as u32);
 
         {
             let mut encoder = gpu_context.get_encoder();
-            encoder.set_buffer_data::<[Point; 4]>("triangles_block", bvh.triangles.as_slice());
-            encoder.set_buffer_data::<BVHNode>("bvh_nodes_block", bvh.bvh_nodes.as_slice());
+            encoder.set_buffer_data::<[Point; 4]>("triangles", bvh.triangles.as_slice());
+            encoder.set_buffer_data::<BVHNode>("bvh_nodes", bvh.bvh_nodes.as_slice());
         }
 
         RayTracer {

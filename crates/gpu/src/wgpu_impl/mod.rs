@@ -2,6 +2,7 @@ use crate::wgpu_impl::compute_pipeline::TextureOrBuffer;
 use anyhow::anyhow;
 use anyhow::Result;
 use egui_winit::State;
+use rspirv_reflect::DescriptorType;
 use wgpu::Backends;
 use wgpu::Buffer;
 use wgpu::InstanceDescriptor;
@@ -240,17 +241,37 @@ impl CoGrWGPU {
             val => return Err(anyhow!("{} already exists and contains: {:?}", shader_name, val)),
         }
 
-        let shader = Shader::get_shader_properties(shader_name, &self.shaders_folder);
+        let shader = Shader::get_shader_properties(shader_name, &self.shaders_folder)?;
 
         let mut errors = Vec::new();
 
         let bindings = shader
             .bindings
             .iter()
-            .map(|resource| match self.resources.get(resource) {
-                Some(GpuResource::Buffer(desc)) => Ok(TextureOrBuffer::Buffer(desc)),
-                Some(GpuResource::Texture(desc)) => Ok(TextureOrBuffer::Texture(desc)),
-                val => Err(anyhow!("{} is not a buffer or texture but contains: {:?}", resource, val)),
+            .map(|resource| match self.resources.get(&resource.name) {
+                Some(GpuResource::Buffer(desc)) => {
+                    if resource.binding_type != DescriptorType::STORAGE_BUFFER {
+                        return Err(anyhow!(
+                            "{} exists but the shader has binding type: {:?} which is not {:?}",
+                            resource.name,
+                            resource.binding_type,
+                            DescriptorType::STORAGE_BUFFER
+                        ));
+                    }
+                    Ok(TextureOrBuffer::Buffer(desc))
+                }
+                Some(GpuResource::Texture(desc)) => {
+                    if resource.binding_type != DescriptorType::STORAGE_IMAGE {
+                        return Err(anyhow!(
+                            "{} exists but the shader has binding type: {:?} which is not {:?}",
+                            resource.name,
+                            resource.binding_type,
+                            DescriptorType::STORAGE_IMAGE
+                        ));
+                    }
+                    Ok(TextureOrBuffer::Texture(desc))
+                }
+                val => Err(anyhow!("{:?} is not a buffer or texture but contains: {:?}", resource, val)),
             })
             .filter_map(|r| r.map_err(|e| errors.push(e)).ok())
             .collect::<Vec<TextureOrBuffer>>();
@@ -259,14 +280,18 @@ impl CoGrWGPU {
             return Err(anyhow!("{:?}", errors));
         }
 
-        let push_constant_range = shader.push_constant_info.offset..shader.push_constant_info.offset + shader.push_constant_info.size;
-
         self.resources.insert(
             shader_name.to_string(),
             GpuResource::Pipeline(PipelineDescriptor {
                 name: shader_name,
                 workgroup_size: (shader.cg_x, shader.cg_y, shader.cg_z),
-                pipeline: ComputePipeline::new(self, shader_name, shader.shader.as_slice(), bindings.as_slice(), Some(push_constant_range)),
+                pipeline: ComputePipeline::new(
+                    self,
+                    shader_name,
+                    shader.shader.as_slice(),
+                    bindings.as_slice(),
+                    Some(shader.push_constant_size),
+                ),
             }),
         );
         Ok(())
