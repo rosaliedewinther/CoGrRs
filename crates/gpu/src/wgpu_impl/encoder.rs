@@ -9,7 +9,9 @@ use egui_wgpu::renderer::ScreenDescriptor;
 use log::info;
 use wgpu::util::DeviceExt;
 use wgpu::IndexFormat::Uint16;
-use wgpu::{CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView};
+use wgpu::{
+    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView,
+};
 
 use crate::wgpu_impl::texture::init_texture;
 use crate::CoGrEncoder;
@@ -33,19 +35,23 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
     fn to_screen(&mut self, to_screen_texture_name: &'static str) -> Result<()> {
         let encoder = self.encoder.as_mut().context("encoder not available")?;
         let mut render_pass = match &self.encoder_type {
-            EncoderType::NonDraw => Err(anyhow!("non draw encoder was used for to_screen rendering"))?,
-            EncoderType::Draw(_, texture_view) => encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: true,
-                    },
-                })],
-                depth_stencil_attachment: None,
-            }),
+            EncoderType::NonDraw => {
+                Err(anyhow!("non draw encoder was used for to_screen rendering"))?
+            }
+            EncoderType::Draw(_, texture_view) => {
+                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: texture_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: true,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                })
+            }
         };
 
         let mut hasher = DefaultHasher::new();
@@ -77,13 +83,22 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                 render_pass.set_index_buffer(desc.pipeline.index_buffer.slice(..), Uint16);
                 render_pass.draw_indexed(0..desc.pipeline.num_indices, 0, 0..1);
             }
-            val => Err(anyhow!("{} was not a to screen pipeline but contained: {:?}", hash_str, val))?,
+            val => Err(anyhow!(
+                "{} was not a to screen pipeline but contained: {:?}",
+                hash_str,
+                val
+            ))?,
         }
 
         Ok(())
     }
 
-    fn dispatch_pipeline<PushConstants: Pod>(&mut self, pipeline_name: &'static str, execution_mode: Execution, push_constants: &PushConstants) -> Result<()> {
+    fn dispatch_pipeline<PushConstants: Pod>(
+        &mut self,
+        pipeline_name: &'static str,
+        execution_mode: Execution,
+        push_constants: &PushConstants,
+    ) -> Result<()> {
         if !self.gpu_context.resources.contains_key(pipeline_name) {
             self.gpu_context.init_pipeline(pipeline_name)?;
         }
@@ -91,36 +106,62 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
 
         match self.gpu_context.resources.get(pipeline_name) {
             Some(GpuResource::Pipeline(desc)) => {
-                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(pipeline_name) });
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some(pipeline_name),
+                });
                 let exec_dims = get_execution_dims(
                     desc.workgroup_size,
                     execution_mode,
-                    (self.gpu_context.config.width, self.gpu_context.config.height),
+                    (
+                        self.gpu_context.config.width,
+                        self.gpu_context.config.height,
+                    ),
                 );
                 compute_pass.set_pipeline(&desc.pipeline.pipeline);
                 compute_pass.set_bind_group(0, &desc.pipeline.bind_group, &[]);
                 compute_pass.set_push_constants(0, bytemuck::bytes_of(push_constants));
                 compute_pass.dispatch_workgroups(exec_dims.0, exec_dims.1, exec_dims.2);
             }
-            val => Err(anyhow!("{} was not a pipeline but contained: {:?}", pipeline_name, val))?,
+            val => Err(anyhow!(
+                "{} was not a pipeline but contained: {:?}",
+                pipeline_name,
+                val
+            ))?,
         }
         Ok(())
     }
 
     fn set_buffer_data<T: Pod>(&mut self, buffer_name: &'static str, data: &[T]) -> Result<()> {
-        info!("writing buffer data to {}, from buffer with {} elements", buffer_name, data.len(),);
+        info!(
+            "writing buffer data to {}, from buffer with {} elements",
+            buffer_name,
+            data.len(),
+        );
         let encoder = self.encoder.as_mut().context("encoder not available")?;
         match self.gpu_context.resources.get(buffer_name) {
             Some(GpuResource::Buffer(desc)) => {
-                let uploading_buffer = self.gpu_context.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("uploading Buffer"),
-                    contents: bytemuck::cast_slice(data),
-                    usage: wgpu::BufferUsages::COPY_SRC,
-                });
+                let uploading_buffer =
+                    self.gpu_context
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("uploading Buffer"),
+                            contents: bytemuck::cast_slice(data),
+                            usage: wgpu::BufferUsages::COPY_SRC,
+                        });
 
-                encoder.copy_buffer_to_buffer(&uploading_buffer, 0, &desc.buffer, 0, (data.len() * std::mem::size_of::<T>()) as u64);
+                encoder.copy_buffer_to_buffer(
+                    &uploading_buffer,
+                    0,
+                    &desc.buffer,
+                    0,
+                    (data.len() * std::mem::size_of::<T>()) as u64,
+                );
             }
-            val => Err(anyhow!("{} was not a buffer but contained: {:?}", buffer_name, val))?,
+            val => Err(anyhow!(
+                "{} was not a buffer but contained: {:?}",
+                buffer_name,
+                val
+            ))?,
         };
         Ok(())
     }
@@ -176,17 +217,29 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
         let encoder = self.encoder.as_mut().context("encoder not available")?;
         match self.gpu_context.resources.get(texture_name) {
             Some(GpuResource::Texture(desc)) => {
-                let bytes_per_pixel = desc.format.describe().block_size;
+                let bytes_per_pixel = desc
+                    .format
+                    .block_size(None)
+                    .expect("could not get block size");
 
-                if data.len() * std::mem::size_of::<T>() / bytes_per_pixel as usize != (desc.size.0 * desc.size.1 * desc.size.2) as usize {
+                if data.len() * std::mem::size_of::<T>() / bytes_per_pixel as usize
+                    != (desc.size.0 * desc.size.1 * desc.size.2) as usize
+                {
                     panic!(
                         "data had a size of {} while the texture had a size of {}",
                         data.len() * std::mem::size_of::<T>(),
-                        (desc.size.0 * desc.size.1 * desc.size.2) as usize * bytes_per_pixel as usize
+                        (desc.size.0 * desc.size.1 * desc.size.2) as usize
+                            * bytes_per_pixel as usize
                     );
                 }
 
-                let (texture, _) = init_texture(self.gpu_context, "copy_texture", desc.size, desc.format, Some(data))?;
+                let (texture, _) = init_texture(
+                    self.gpu_context,
+                    "copy_texture",
+                    desc.size,
+                    desc.format,
+                    Some(data),
+                )?;
                 encoder.copy_texture_to_texture(
                     ImageCopyTexture {
                         texture: &texture,
@@ -207,7 +260,11 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                     },
                 );
             }
-            val => Err(anyhow!("{} was not a texture but contained: {:?}", texture_name, val))?,
+            val => Err(anyhow!(
+                "{} was not a texture but contained: {:?}",
+                texture_name,
+                val
+            ))?,
         };
         Ok(())
     }
@@ -224,19 +281,32 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
             size_in_pixels: [ctx.config.width, ctx.config.height],
             pixels_per_point: 1f32,
         };
-        let full_output = ctx.context.run(ctx.state.take_egui_input(ctx.window.as_ref()), |ctx| ui_builder(ctx));
+        let full_output = ctx
+            .context
+            .run(ctx.state.take_egui_input(ctx.window.as_ref()), |ctx| {
+                ui_builder(ctx)
+            });
 
         let paint_jobs = ctx.context.tessellate(full_output.shapes);
         let tdelta = full_output.textures_delta;
 
         {
             for d in tdelta.set {
-                ctx.renderer.update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
+                ctx.renderer
+                    .update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
             }
-            ctx.renderer.update_buffers(&ctx.device, &ctx.queue, encoder, &paint_jobs, &screen_descriptor);
+            ctx.renderer.update_buffers(
+                &ctx.device,
+                &ctx.queue,
+                encoder,
+                &paint_jobs,
+                &screen_descriptor,
+            );
 
             match &self.encoder_type {
-                EncoderType::NonDraw => Err(anyhow!("Tried to draw without using get_encoder_for_draw()"))?,
+                EncoderType::NonDraw => Err(anyhow!(
+                    "Tried to draw without using get_encoder_for_draw()"
+                ))?,
                 EncoderType::Draw(_, texture_view) => {
                     let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -249,7 +319,11 @@ impl<'a> CoGrEncoder for EncoderWGPU<'a> {
                         })],
                         ..Default::default()
                     });
-                    ctx.renderer.render(&mut render_pass, paint_jobs.as_slice(), &screen_descriptor);
+                    ctx.renderer.render(
+                        &mut render_pass,
+                        paint_jobs.as_slice(),
+                        &screen_descriptor,
+                    );
                 }
             }
         }
@@ -262,13 +336,17 @@ impl<'a> Drop for EncoderWGPU<'a> {
         match &mut self.encoder_type {
             EncoderType::Draw(texture, _) => {
                 self.encoder.as_mut().unwrap().pop_debug_group();
-                self.gpu_context.queue.submit(std::iter::once(self.encoder.take().unwrap().finish()));
+                self.gpu_context
+                    .queue
+                    .submit(std::iter::once(self.encoder.take().unwrap().finish()));
                 let surface = texture.take().unwrap();
                 surface.present();
             }
             EncoderType::NonDraw => {
                 self.encoder.as_mut().unwrap().pop_debug_group();
-                self.gpu_context.queue.submit(std::iter::once(self.encoder.take().unwrap().finish()));
+                self.gpu_context
+                    .queue
+                    .submit(std::iter::once(self.encoder.take().unwrap().finish()));
             }
         }
     }

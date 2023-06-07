@@ -6,25 +6,27 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winit = {version = "0.28", default-features = false}
-wgpu = {version = "0.15", default-features = false, features = ["spirv"]}
-num = {version = "0.4", default-features = false}
-pollster = {version = "0.3", default-features = false}
-bytemuck = {version = "1.7", default-features = false, features = [ "derive" ]}
-inline-spirv = {version = "0.1", default-features = false, features = ["hlsl"]}
+winit = { version = "0.28", default-features = false }
+wgpu = { version = "0.16", default-features = false, features = ["spirv"] }
+num = { version = "0.4", default-features = false }
+pollster = { version = "0.3", default-features = false }
+bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
+inline-spirv = { version = "0.1", default-features = false, features = [
+    "hlsl",
+] }
 futures-intrusive = "0.5"
-inline-spirv-runtime = {git="https://github.com/jasperdewinther/inline-spirv-rs/", rev="efa57ed"}
-log = {version = "0.4", default-features = false}
-rspirv-reflect = "0.7"
+inline-spirv-runtime = { git = "https://github.com/jasperdewinther/inline-spirv-rs/", rev = "efa57ed" }
+log = { version = "0.4", default-features = false }
+rspirv-reflect = "0.8"
 fxhash = "0.2"
 serde_yaml = "0.9"
 regex = "1.7"
 anyhow = "1.0"
 hassle-rs = "0.10"
 
-egui = "0.21"
-egui-wgpu = "0.21"
-egui-winit = "0.21"
+egui = "0.22"
+egui-wgpu = "0.22"
+egui-winit = "0.22"
 
 futures = "0.3"
 
