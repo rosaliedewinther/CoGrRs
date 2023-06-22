@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::sync::Arc;
 
-use gpu::{egui, CoGr, CoGrEncoder, Renderer};
+use gpu::{egui, CoGr};
 use window::{
     input::Input,
     main_loop::{main_loop_run, Game},
@@ -9,12 +9,12 @@ use window::{
 };
 
 pub struct HelloWorld {
-    pub gpu_context: Renderer,
+    pub gpu_context: CoGr,
 }
 
 impl Game for HelloWorld {
     fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
-        let gpu_context = Renderer::new(window, "", event_loop)?;
+        let gpu_context = CoGr::new(window, event_loop)?;
         Ok(HelloWorld { gpu_context })
     }
 

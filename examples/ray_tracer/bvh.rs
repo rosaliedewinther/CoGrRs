@@ -66,7 +66,9 @@ impl Debug for Aabb {
 
 impl Point {
     pub fn new(x: f32, y: f32, z: f32) -> Point {
-        Point { pos: [x, y, z, 0f32] }
+        Point {
+            pos: [x, y, z, 0f32],
+        }
     }
 }
 
@@ -75,7 +77,12 @@ impl Add for Point {
 
     fn add(self, other: Point) -> Point {
         Point {
-            pos: [self.pos[0] + other.pos[0], self.pos[1] + other.pos[1], self.pos[2] + other.pos[2], 0f32],
+            pos: [
+                self.pos[0] + other.pos[0],
+                self.pos[1] + other.pos[1],
+                self.pos[2] + other.pos[2],
+                0f32,
+            ],
         }
     }
 }
@@ -85,7 +92,12 @@ impl Add<f32> for Point {
 
     fn add(self, other: f32) -> Point {
         Point {
-            pos: [self.pos[0] + other, self.pos[1] + other, self.pos[2] + other, 0f32],
+            pos: [
+                self.pos[0] + other,
+                self.pos[1] + other,
+                self.pos[2] + other,
+                0f32,
+            ],
         }
     }
 }
@@ -95,7 +107,12 @@ impl Sub for Point {
 
     fn sub(self, other: Point) -> Point {
         Point {
-            pos: [self.pos[0] - other.pos[0], self.pos[1] - other.pos[1], self.pos[2] - other.pos[2], 0f32],
+            pos: [
+                self.pos[0] - other.pos[0],
+                self.pos[1] - other.pos[1],
+                self.pos[2] - other.pos[2],
+                0f32,
+            ],
         }
     }
 }
@@ -105,7 +122,12 @@ impl Sub<f32> for Point {
 
     fn sub(self, other: f32) -> Point {
         Point {
-            pos: [self.pos[0] - other, self.pos[1] - other, self.pos[2] - other, 0f32],
+            pos: [
+                self.pos[0] - other,
+                self.pos[1] - other,
+                self.pos[2] - other,
+                0f32,
+            ],
         }
     }
 }
@@ -115,7 +137,12 @@ impl Mul<f32> for Point {
 
     fn mul(self, scalar: f32) -> Point {
         Point {
-            pos: [self.pos[0] * scalar, self.pos[1] * scalar, self.pos[2] * scalar, 0f32],
+            pos: [
+                self.pos[0] * scalar,
+                self.pos[1] * scalar,
+                self.pos[2] * scalar,
+                0f32,
+            ],
         }
     }
 }
@@ -125,7 +152,12 @@ impl Mul<Point> for Point {
 
     fn mul(self, rhs: Point) -> Point {
         Point {
-            pos: [self.pos[0] * rhs.pos[0], self.pos[1] * rhs.pos[1], self.pos[2] * rhs.pos[2], 0f32],
+            pos: [
+                self.pos[0] * rhs.pos[0],
+                self.pos[1] * rhs.pos[1],
+                self.pos[2] * rhs.pos[2],
+                0f32,
+            ],
         }
     }
 }
@@ -135,7 +167,12 @@ impl Div<f32> for Point {
 
     fn div(self, scalar: f32) -> Point {
         Point {
-            pos: [self.pos[0] / scalar, self.pos[1] / scalar, self.pos[2] / scalar, 0f32],
+            pos: [
+                self.pos[0] / scalar,
+                self.pos[1] / scalar,
+                self.pos[2] / scalar,
+                0f32,
+            ],
         }
     }
 }
@@ -144,7 +181,12 @@ impl Div<Point> for f32 {
 
     fn div(self, point: Point) -> Point {
         Point {
-            pos: [self / point.pos[0], self / point.pos[1], self / point.pos[2], 0f32],
+            pos: [
+                self / point.pos[0],
+                self / point.pos[1],
+                self / point.pos[2],
+                0f32,
+            ],
         }
     }
 }
@@ -194,7 +236,14 @@ impl Debug for BVHNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!(
             "{} {} {} {} {} {} {} {}",
-            self.count, self.left_first, self.maxx, self.maxy, self.maxz, self.minx, self.miny, self.minz
+            self.count,
+            self.left_first,
+            self.maxx,
+            self.maxy,
+            self.maxz,
+            self.minx,
+            self.miny,
+            self.minz
         ))
     }
 }
@@ -213,7 +262,9 @@ impl Bvh {
                 let p1 = splits[1].parse::<f32>().unwrap();
                 let p2 = splits[2].parse::<f32>().unwrap();
                 let p3 = splits[3].parse::<f32>().unwrap();
-                vertices.push(Point { pos: [p1, p2, p3, 0f32] });
+                vertices.push(Point {
+                    pos: [p1, p2, p3, 0f32],
+                });
             }
             if splits[0] == "f" {
                 match splits.len() {
@@ -238,11 +289,22 @@ impl Bvh {
             }
         }
 
-        let indices: Vec<u32> = triangles.iter().enumerate().map(|(i, _)| i as u32).collect();
+        let indices: Vec<u32> = triangles
+            .iter()
+            .enumerate()
+            .map(|(i, _)| i as u32)
+            .collect();
 
         let triangles: Vec<[Point; 4]> = triangles
             .iter()
-            .map(|tri| [vertices[tri[0] as usize], vertices[tri[1] as usize], vertices[tri[2] as usize], Point::zeroed()])
+            .map(|tri| {
+                [
+                    vertices[tri[0] as usize],
+                    vertices[tri[1] as usize],
+                    vertices[tri[2] as usize],
+                    Point::zeroed(),
+                ]
+            })
             .collect();
 
         let bvh_nodes = vec![BVHNode::zeroed(); triangles.len() * 2];
@@ -256,7 +318,11 @@ impl Bvh {
     }
 
     pub fn build_bvh(&mut self) {
-        self.centroids = self.triangles.iter().map(|t| (t[0] + t[1] + t[2]) / 3f32).collect();
+        self.centroids = self
+            .triangles
+            .iter()
+            .map(|t| (t[0] + t[1] + t[2]) / 3f32)
+            .collect();
 
         self.bvh_nodes[0].left_first = 0;
         self.bvh_nodes[0].count = self.triangles.len() as i32;
@@ -272,7 +338,11 @@ impl Bvh {
         self.bvh_nodes.truncate(new_node_index as usize);
         self.bvh_nodes.shrink_to_fit();
 
-        self.triangles = self.indices.iter().map(|index| self.triangles[*index as usize]).collect();
+        self.triangles = self
+            .indices
+            .iter()
+            .map(|index| self.triangles[*index as usize])
+            .collect();
     }
 
     fn subdivide(&mut self, current_bvh_index: usize, start: u32, pool_index: &mut u32) {
@@ -334,8 +404,10 @@ impl Bvh {
                 let bb1 = self.calculate_bounds(start, bb1_count, false);
                 let bb2 = self.calculate_bounds(pivot, bb2_count, false);
 
-                let half_area1 = Self::get_area(bb1.maxx, bb1.maxy, bb1.maxz, bb1.minx, bb1.miny, bb1.minz);
-                let half_area2 = Self::get_area(bb2.maxx, bb2.maxy, bb2.maxz, bb2.minx, bb2.miny, bb2.minz);
+                let half_area1 =
+                    Self::get_area(bb1.maxx, bb1.maxy, bb1.maxz, bb1.minx, bb1.miny, bb1.minz);
+                let half_area2 =
+                    Self::get_area(bb2.maxx, bb2.maxy, bb2.maxz, bb2.minx, bb2.miny, bb2.minz);
 
                 let cost = half_area1 * bb1_count as f32 + half_area2 * bb2_count as f32;
                 if cost < optimal_cost {
@@ -351,7 +423,10 @@ impl Bvh {
     }
 
     fn get_area(maxx: f32, maxy: f32, maxz: f32, minx: f32, miny: f32, minz: f32) -> f32 {
-        ((maxx - minx) * (maxy - miny) + (maxx - minx) * (maxz - minz) + (maxy - miny) * (maxz - minz)) * 2f32
+        ((maxx - minx) * (maxy - miny)
+            + (maxx - minx) * (maxz - minz)
+            + (maxy - miny) * (maxz - minz))
+            * 2f32
     }
 
     fn partition_shuffle(&mut self, axis: usize, pos: f32, start: u32, count: u32) -> u32 {

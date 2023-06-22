@@ -257,8 +257,8 @@ float4 triangle_normal(uint triangle_id)
     if (prim != uint(-1))
     {
         float4 normal = triangle_normal(prim);
-        float intensity = dot(normal.xyz, normalize(float3(1, -1, 1))) + 1;
-        float4 color = float4(intensity, intensity, intensity, intensity) / 2;
+        float intensity = (dot(normal.xyz, normalize(float3(1, -1, 1))) + 1)/2;
+        float4 color = float4(intensity, 0, 1, 1);
         to_draw_texture[pos] = color;
     }
     else

@@ -15,9 +15,9 @@ inline-spirv = { version = "0.1", default-features = false, features = [
     "hlsl",
 ] }
 futures-intrusive = "0.5"
-inline-spirv-runtime = { git = "https://github.com/jasperdewinther/inline-spirv-rs/", rev = "efa57ed" }
+inline-spirv-runtime = { git = "https://github.com/rosaliedewinther/inline-spirv-rs/", rev = "efa57ed" }
 log = { version = "0.4", default-features = false }
-rspirv-reflect = "0.8"
+spirv-reflect = "0.2"
 fxhash = "0.2"
 serde_yaml = "0.9"
 regex = "1.7"
