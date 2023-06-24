@@ -22,14 +22,21 @@ where
     let window_builder = WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(window_width, window_height))
         .with_resizable(false);
-    let window = Arc::new(window_builder.build(&event_loop).expect("unable to build window"));
+    let window = Arc::new(
+        window_builder
+            .build(&event_loop)
+            .expect("unable to build window"),
+    );
     let mut game = T::on_init(&window, &event_loop)?;
     let mut window_input = Input::new();
     let mut on_tick_timer = Instant::now();
     let mut on_render_timer = Instant::now();
 
     event_loop.run(move |event, _, control_flow| match event {
-        Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
+        Event::WindowEvent {
+            ref event,
+            window_id,
+        } if window_id == window.id() => {
             if let Err(err) = game.on_window_event(event) {
                 println!("{}", err);
                 *control_flow = ControlFlow::Exit;

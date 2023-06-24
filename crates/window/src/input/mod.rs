@@ -98,6 +98,8 @@ impl Input {
         self.mouse_state.mouse_delta
     }
     pub fn any_change(&self) -> bool {
-        self.keyboard_state.any_down() || self.mouse_state.mouse_delta[0] != 0.0 || self.mouse_state.mouse_delta[1] != 0.0
+        self.keyboard_state.any_down()
+            || self.mouse_state.mouse_delta[0] != 0.0
+            || self.mouse_state.mouse_delta[1] != 0.0
     }
 }

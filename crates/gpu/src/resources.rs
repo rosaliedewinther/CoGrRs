@@ -1,13 +1,16 @@
-use std::sync::Arc;
 use parking_lot::{Mutex, MutexGuard};
+use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
-use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor, TextureViewDimension, util::DeviceExt};
 use std::fmt::Debug;
+use wgpu::{
+    util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages,
+    TextureViewDescriptor, TextureViewDimension,
+};
 
-pub enum ResourceHandle<'a>{
+pub enum ResourceHandle<'a> {
     T(&'a TextureHandle),
-    B(&'a BufferHandle)
+    B(&'a BufferHandle),
 }
 
 #[derive(Debug)]
@@ -46,12 +49,12 @@ pub enum BufferSize {
     Custom(u64),
 }
 
-impl From<u64> for BufferSize{
+impl From<u64> for BufferSize {
     fn from(value: u64) -> Self {
         BufferSize::Custom(value)
     }
 }
-impl From<usize> for BufferSize{
+impl From<usize> for BufferSize {
     fn from(value: usize) -> Self {
         BufferSize::Custom(value as u64)
     }
@@ -115,7 +118,7 @@ impl Buffer {
     }
 }
 
-pub trait ResourceHandleConvertable<'a>: Debug{
+pub trait ResourceHandleConvertable<'a>: Debug {
     fn to_resource_handle(&'a self) -> ResourceHandle<'a>;
     fn get_index(&self) -> usize;
     fn clone(&self) -> Self;
@@ -130,7 +133,7 @@ pub struct TextureHandle(Arc<Mutex<usize>>);
 #[derive(Debug)]
 pub struct BufferHandle(Arc<Mutex<usize>>);
 
-impl<'a> ResourceHandleConvertable<'a> for TextureHandle{
+impl<'a> ResourceHandleConvertable<'a> for TextureHandle {
     fn to_resource_handle(&'a self) -> ResourceHandle<'a> {
         ResourceHandle::T(self)
     }
@@ -144,17 +147,17 @@ impl<'a> ResourceHandleConvertable<'a> for TextureHandle{
         TextureHandle(Arc::new(Mutex::new(index)))
     }
     fn reference_count(&self) -> usize {
-        Arc::strong_count(&self.0) +  Arc::weak_count(&self.0)
+        Arc::strong_count(&self.0) + Arc::weak_count(&self.0)
     }
-    fn get_mut(&mut self) -> MutexGuard<'_, usize>{
+    fn get_mut(&mut self) -> MutexGuard<'_, usize> {
         self.0.lock()
     }
-    fn ptr_eq(&self, other: &Self) -> bool{
+    fn ptr_eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
 }
 
-impl<'a> ResourceHandleConvertable<'a> for BufferHandle{
+impl<'a> ResourceHandleConvertable<'a> for BufferHandle {
     fn to_resource_handle(&'a self) -> ResourceHandle<'a> {
         ResourceHandle::B(self)
     }
@@ -168,12 +171,12 @@ impl<'a> ResourceHandleConvertable<'a> for BufferHandle{
         BufferHandle(Arc::new(Mutex::new(index)))
     }
     fn reference_count(&self) -> usize {
-        Arc::strong_count(&self.0) +  Arc::weak_count(&self.0)
+        Arc::strong_count(&self.0) + Arc::weak_count(&self.0)
     }
     fn get_mut(&mut self) -> MutexGuard<'_, usize> {
         self.0.lock()
     }
-    fn ptr_eq(&self, other: &Self) -> bool{
+    fn ptr_eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
 }
@@ -197,10 +200,10 @@ impl ResourcePool {
         }
     }
 
-    pub fn grab_texture(&self, handle: &TextureHandle) -> &Texture{
+    pub fn grab_texture(&self, handle: &TextureHandle) -> &Texture {
         &self.textures[handle.get_index() as usize]
     }
-    pub fn grab_buffer(&self, handle: &BufferHandle) -> &Buffer{
+    pub fn grab_buffer(&self, handle: &BufferHandle) -> &Buffer {
         &self.buffers[handle.get_index() as usize]
     }
 
@@ -242,9 +245,8 @@ impl ResourcePool {
                     buffer.element_size,
                     buffer.buffer.is_some()
                 )
-            
             );
-            self.textures
+        self.textures
             .iter()
             .enumerate().for_each(|(index, texture)|
                 println!(
@@ -269,9 +271,9 @@ impl ResourcePool {
             if handle.reference_count() == 1 {
                 self.buffers.remove(i);
                 self.buffer_handles.remove(i);
-                self.buffer_handles.iter_mut().for_each(|handle|{
+                self.buffer_handles.iter_mut().for_each(|handle| {
                     let mut lock = handle.get_mut();
-                    if *lock > i{
+                    if *lock > i {
                         *lock -= 1;
                     }
                 });
@@ -285,9 +287,9 @@ impl ResourcePool {
             if handle.reference_count() == 1 {
                 self.textures.remove(i);
                 self.texture_handles.remove(i);
-                self.buffer_handles.iter_mut().for_each(|handle|{
+                self.buffer_handles.iter_mut().for_each(|handle| {
                     let mut lock = handle.get_mut();
-                    if *lock > i{
+                    if *lock > i {
                         *lock -= 1;
                     }
                 });
@@ -296,37 +298,30 @@ impl ResourcePool {
             i += 1;
         }
 
-        self.textures
-            .iter_mut()
-            .for_each(|texture|
-                    if texture.texture.is_none() {
-                        let (new_texture, new_texture_view) = init_texture(
-                            device,
-                            &texture.name,
-                            match_resolution(config, &texture.resolution),
-                            texture.format,
-                        )
-                        .unwrap();
-                        texture.texture = Some(new_texture);
-                        texture.texture_view = Some(new_texture_view);
-                    
+        self.textures.iter_mut().for_each(|texture| {
+            if texture.texture.is_none() {
+                let (new_texture, new_texture_view) = init_texture(
+                    device,
+                    &texture.name,
+                    match_resolution(config, &texture.resolution),
+                    texture.format,
+                )
+                .unwrap();
+                texture.texture = Some(new_texture);
+                texture.texture_view = Some(new_texture_view);
+            }
+        });
 
-            });
-
-        self.buffers
-            .iter_mut()
-            .for_each(|buffer| 
-                    if buffer.buffer.is_none() {
-                        buffer.buffer = Some(init_storage_buffer(
-                            device,
-                            &buffer.name,
-                            match_buffer_size(config, &buffer.elements, buffer.element_size),
-                        ));
-                    
-            });
+        self.buffers.iter_mut().for_each(|buffer| {
+            if buffer.buffer.is_none() {
+                buffer.buffer = Some(init_storage_buffer(
+                    device,
+                    &buffer.name,
+                    match_buffer_size(config, &buffer.elements, buffer.element_size),
+                ));
+            }
+        });
     }
-
-    
 }
 
 pub fn init_texture(
@@ -387,7 +382,7 @@ pub fn init_texture_with_data(
     texture_name: &str,
     dims: (u32, u32, u32),
     format: wgpu::TextureFormat,
-    data: &[u8]
+    data: &[u8],
 ) -> Result<(wgpu::Texture, wgpu::TextureView)> {
     if dims.0 == 0 || dims.1 == 0 || dims.2 == 0 {
         Err(anyhow!(
@@ -411,21 +406,22 @@ pub fn init_texture_with_data(
         _ => TextureViewDimension::D3,
     };
 
-    let texture = 
-        device.create_texture_with_data(
-            &queue,
-            &wgpu::TextureDescriptor {
-                label: Some(texture_name),
-                format,
-                size: texture_size,
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: texture_dimension,
-                usage: TextureUsages::STORAGE_BINDING | TextureUsages::COPY_DST | TextureUsages::COPY_SRC,
-                view_formats: &[format],
-            },
-            bytemuck::cast_slice(data),
-        );
+    let texture = device.create_texture_with_data(
+        &queue,
+        &wgpu::TextureDescriptor {
+            label: Some(texture_name),
+            format,
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: texture_dimension,
+            usage: TextureUsages::STORAGE_BINDING
+                | TextureUsages::COPY_DST
+                | TextureUsages::COPY_SRC,
+            view_formats: &[format],
+        },
+        bytemuck::cast_slice(data),
+    );
 
     let texture_view = texture.create_view(&TextureViewDescriptor {
         label: Some(&(texture_name.to_string() + "_view")),

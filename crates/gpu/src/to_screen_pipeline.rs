@@ -1,9 +1,11 @@
 use inline_spirv::include_spirv;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
-    Buffer, BufferUsages, ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode,
-    PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptorSpirV, ShaderStages, StorageTextureAccess,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingResource, BindingType, BlendState, Buffer, BufferUsages,
+    ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState,
+    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline,
+    RenderPipelineDescriptor, ShaderModuleDescriptorSpirV, ShaderStages, StorageTextureAccess,
     TextureFormat, TextureView, TextureViewDimension, VertexState,
 };
 
@@ -16,10 +18,15 @@ pub struct ToScreenPipeline {
 }
 
 impl ToScreenPipeline {
-    pub fn new(device: &Device, screen_texture: &TextureView, texture_format: TextureFormat) -> Self {
+    pub fn new(
+        device: &Device,
+        screen_texture: &TextureView,
+        texture_format: TextureFormat,
+    ) -> Self {
         let (index_buffer, num_indices) = ToScreenPipeline::init_primitives(device);
 
-        let (bindgroup, bindgroup_layout) = ToScreenPipeline::init_bindgroup(device, screen_texture, texture_format);
+        let (bindgroup, bindgroup_layout) =
+            ToScreenPipeline::init_bindgroup(device, screen_texture, texture_format);
         let pipeline = ToScreenPipeline::init_pipeline(device, &bindgroup_layout, texture_format);
 
         ToScreenPipeline {
@@ -30,18 +37,30 @@ impl ToScreenPipeline {
         }
     }
 
-    fn init_pipeline(device: &Device, bindgroup_layout: &BindGroupLayout, texture_format: TextureFormat) -> RenderPipeline {
+    fn init_pipeline(
+        device: &Device,
+        bindgroup_layout: &BindGroupLayout,
+        texture_format: TextureFormat,
+    ) -> RenderPipeline {
         let f_shader = unsafe {
             device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
                 label: Some("../../shaders/to_screen.frag"),
-                source: std::borrow::Cow::Borrowed(include_spirv!("shaders/to_screen.frag", frag, vulkan1_2)),
+                source: std::borrow::Cow::Borrowed(include_spirv!(
+                    "shaders/to_screen.frag",
+                    frag,
+                    vulkan1_2
+                )),
             })
         };
 
         let v_shader = unsafe {
             device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
                 label: Some("../../shaders/to_screen.vert"),
-                source: std::borrow::Cow::Borrowed(include_spirv!("shaders/to_screen.vert", vert, vulkan1_2)),
+                source: std::borrow::Cow::Borrowed(include_spirv!(
+                    "shaders/to_screen.vert",
+                    vert,
+                    vulkan1_2
+                )),
             })
         };
         let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -91,7 +110,11 @@ impl ToScreenPipeline {
         })
     }
 
-    fn init_bindgroup(device: &Device, texture_view: &TextureView, texture_format: TextureFormat) -> (BindGroup, BindGroupLayout) {
+    fn init_bindgroup(
+        device: &Device,
+        texture_view: &TextureView,
+        texture_format: TextureFormat,
+    ) -> (BindGroup, BindGroupLayout) {
         let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: Some("texture_bind_group_layout_to_screen"),
             entries: &[BindGroupLayoutEntry {

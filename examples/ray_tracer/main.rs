@@ -102,7 +102,7 @@ impl Game for RayTracer {
     fn on_render(&mut self, input: &mut Input, dt: f32) -> Result<()> {
         self.time += 0.001 * PI;
         if self.timings_ptr < self.timings.len() {
-            self.timings[self.timings_ptr as usize] = dt;
+            self.timings[self.timings_ptr] = dt;
             self.timings_ptr += 1;
         } else {
             self.saved_timing = self.timings.iter().sum::<f32>() / self.timings.len() as f32;
