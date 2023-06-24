@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::f32::consts::PI;
 use std::sync::Arc;
 
 use crate::bvh::{cross, BVHNode};
@@ -27,6 +27,9 @@ struct RayTracer {
     triangles: BufferHandle,
     bvh_nodes: BufferHandle,
     trace_pipeline: ComputePipeline,
+    timings: [f32; 1000],
+    timings_ptr: usize,
+    saved_timing: f32,
 }
 
 #[repr(C)]
@@ -80,22 +83,31 @@ impl Game for RayTracer {
             encoder.set_buffer_data(&bvh_nodes, bvh.bvh_nodes)?;
         }
 
-        let trace_pipeline =
-            gpu_context.init_pipeline(Path::new("examples/ray_tracer/trace.hlsl"))?;
+        let trace_pipeline = gpu_context.init_pipeline("examples/ray_tracer/trace.hlsl")?;
 
         Ok(RayTracer {
             gpu_context,
             time: 0f32,
-            distance: -10f32,
+            distance: -1f32,
             to_draw,
             triangles,
             bvh_nodes,
             trace_pipeline,
+            timings: [0f32; 1000],
+            timings_ptr: 0,
+            saved_timing: 0f32,
         })
     }
 
     fn on_render(&mut self, input: &mut Input, dt: f32) -> Result<()> {
-        self.time += dt;
+        self.time += 0.001 * PI;
+        if self.timings_ptr < self.timings.len() {
+            self.timings[self.timings_ptr as usize] = dt;
+            self.timings_ptr += 1;
+        } else {
+            self.saved_timing = self.timings.iter().sum::<f32>() / self.timings.len() as f32;
+            self.timings_ptr = 0;
+        }
         self.distance += input.mouse_state.scroll_delta;
 
         let ray_origin = Point::new(
@@ -133,7 +145,7 @@ impl Game for RayTracer {
         encoder.to_screen(&self.to_draw)?;
         encoder.draw_ui(|ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
-                ui.label(format!("ms: {}", dt * 1000f32));
+                ui.label(format!("ms: {}", self.saved_timing * 1000f32));
             });
         })?;
 

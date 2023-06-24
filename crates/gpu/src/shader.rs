@@ -1,11 +1,9 @@
-use std::path::{Path, PathBuf};
-
 use anyhow::{anyhow, Result};
 use hassle_rs::{compile_hlsl, validate_dxil};
 use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
 
 pub struct Shader {
-    pub file: PathBuf,
+    pub file: String,
     pub shader: Vec<u8>,
     pub push_constant_size: u32,
     pub cg_x: u32, //compute group size x
@@ -22,17 +20,10 @@ pub enum Execution {
 }
 
 impl Shader {
-    pub fn compile_shader(shader_file: &Path) -> Result<Shader> {
+    pub fn compile_shader(shader_file: &str) -> Result<Shader> {
         let code = std::fs::read_to_string(&shader_file)?;
 
-        let dxil = match compile_hlsl(
-            &shader_file.to_string_lossy(),
-            &code,
-            "main",
-            "cs_6_5",
-            &[],
-            &[],
-        ) {
+        let dxil = match compile_hlsl(&shader_file, &code, "main", "cs_6_5", &[], &[]) {
             Ok(data) => data,
             Err(err) => panic!("{}", err),
         };
@@ -42,14 +33,7 @@ impl Shader {
             println!("validation failed: {}", err);
         }
 
-        let spirv = compile_hlsl(
-            &shader_file.to_string_lossy(),
-            &code,
-            "main",
-            "cs_6_5",
-            &["-spirv"],
-            &[],
-        )?; //TODO add defines
+        let spirv = compile_hlsl(&shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
 
         let reflector =
             ShaderModule::load_u8_data(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;
@@ -76,7 +60,7 @@ impl Shader {
             .map_err(|val| anyhow!(val.to_string()))?;
 
         Ok(Shader {
-            file: shader_file.to_path_buf(),
+            file: shader_file.to_string(),
             shader: spirv,
             cg_x: 0,
             cg_y: 0,

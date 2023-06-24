@@ -17,7 +17,6 @@ use winit::window::Window;
 
 pub use egui;
 use std::fmt::Debug;
-use std::path::Path;
 use std::sync::Arc;
 pub use wgpu;
 
@@ -217,8 +216,8 @@ impl CoGr {
     }
 }
 impl CoGr {
-    pub fn init_pipeline(&mut self, shader_file: &Path) -> Result<ComputePipeline> {
-        Ok(ComputePipeline::new(self, &shader_file))
+    pub fn init_pipeline(&mut self, shader_file: &str) -> Result<ComputePipeline> {
+        Ok(ComputePipeline::new(self, shader_file))
     }
     pub fn log_state(&self) {
         println!("Textures:");

@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use spirv_reflect::types::{ReflectDescriptorType, ReflectDimension, ReflectImageFormat};
 
 use crate::shader::Shader;
@@ -72,16 +70,15 @@ fn map_texture_format(format: &ReflectImageFormat) -> wgpu::TextureFormat {
 }
 
 impl ComputePipeline {
-    pub(crate) fn new(gpu_context: &CoGr, shader: &Path) -> Self {
-        let shader = Shader::compile_shader(shader).unwrap();
+    pub(crate) fn new(gpu_context: &CoGr, shader_file: &str) -> Self {
+        let shader = Shader::compile_shader(shader_file).unwrap();
         let shader_data: &[u32] = bytemuck::cast_slice(shader.shader.as_slice());
-        let pipeline_name = shader.file.to_str().unwrap();
 
         let cs_module = unsafe {
             gpu_context
                 .device
                 .create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
-                    label: Some(pipeline_name),
+                    label: Some(&shader.file),
                     source: std::borrow::Cow::Borrowed(shader_data),
                 })
         };
@@ -114,7 +111,7 @@ impl ComputePipeline {
             gpu_context
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some(&(pipeline_name.to_owned() + "_bindgroup_layout")),
+                    label: Some(&(shader_file.to_owned() + "_bindgroup_layout")),
                     entries: bind_group_layout_entries.as_slice(),
                 });
 
@@ -127,7 +124,7 @@ impl ComputePipeline {
             gpu_context
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some(&(pipeline_name.to_owned() + "_layout")),
+                    label: Some(&(shader_file.to_owned() + "_layout")),
                     bind_group_layouts: &[&bind_group_layout],
                     push_constant_ranges: push_constant_range_vec.as_slice(),
                 });
@@ -136,7 +133,7 @@ impl ComputePipeline {
             gpu_context
                 .device
                 .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                    label: Some(pipeline_name),
+                    label: Some(shader_file),
                     layout: Some(&pipeline_layout),
                     module: &cs_module,
                     entry_point: "main",

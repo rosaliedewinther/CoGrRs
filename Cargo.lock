@@ -790,6 +790,7 @@ dependencies = [
  "inline-spirv-runtime",
  "log",
  "num",
+ "parking_lot",
  "pollster",
  "regex",
  "serde_yaml",

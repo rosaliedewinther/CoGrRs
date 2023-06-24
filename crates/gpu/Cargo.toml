@@ -18,6 +18,7 @@ futures-intrusive = "0.5"
 inline-spirv-runtime = { git = "https://github.com/rosaliedewinther/inline-spirv-rs/", rev = "efa57ed" }
 log = { version = "0.4", default-features = false }
 spirv-reflect = "0.2"
+parking_lot = "0.12"
 fxhash = "0.2"
 serde_yaml = "0.9"
 regex = "1.7"

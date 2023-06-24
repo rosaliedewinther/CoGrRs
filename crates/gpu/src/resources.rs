@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
+use parking_lot::{Mutex, MutexGuard};
 
 use anyhow::{anyhow, Result};
 use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor, TextureViewDimension, util::DeviceExt};
@@ -134,7 +135,7 @@ impl<'a> ResourceHandleConvertable<'a> for TextureHandle{
         ResourceHandle::T(self)
     }
     fn get_index(&self) -> usize {
-        self.0.lock().unwrap().clone()
+        self.0.lock().clone()
     }
     fn clone(&self) -> Self {
         TextureHandle(self.0.clone())
@@ -146,7 +147,7 @@ impl<'a> ResourceHandleConvertable<'a> for TextureHandle{
         Arc::strong_count(&self.0) +  Arc::weak_count(&self.0)
     }
     fn get_mut(&mut self) -> MutexGuard<'_, usize>{
-        self.0.lock().unwrap()
+        self.0.lock()
     }
     fn ptr_eq(&self, other: &Self) -> bool{
         Arc::ptr_eq(&self.0, &other.0)
@@ -158,7 +159,7 @@ impl<'a> ResourceHandleConvertable<'a> for BufferHandle{
         ResourceHandle::B(self)
     }
     fn get_index(&self) -> usize {
-        self.0.lock().unwrap().clone()
+        self.0.lock().clone()
     }
     fn clone(&self) -> Self {
         BufferHandle(self.0.clone())
@@ -170,7 +171,7 @@ impl<'a> ResourceHandleConvertable<'a> for BufferHandle{
         Arc::strong_count(&self.0) +  Arc::weak_count(&self.0)
     }
     fn get_mut(&mut self) -> MutexGuard<'_, usize> {
-        self.0.lock().unwrap()
+        self.0.lock()
     }
     fn ptr_eq(&self, other: &Self) -> bool{
         Arc::ptr_eq(&self.0, &other.0)

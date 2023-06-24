@@ -5,7 +5,6 @@ use gpu::resources::ResourceHandle::T;
 use gpu::resources::TextureHandle;
 use gpu::resources::TextureRes::FullRes;
 use gpu::CoGr;
-use std::path::Path;
 use std::sync::Arc;
 use window::winit::event::WindowEvent;
 use window::winit::event_loop::EventLoop;
@@ -32,8 +31,7 @@ impl Game for HelloSine {
     fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
         let mut gpu_context = CoGr::new(window, event_loop)?;
         let to_draw_texture = gpu_context.texture("to_draw", FullRes, gpu_context.config.format);
-        let draw_pipeline =
-            gpu_context.init_pipeline(Path::new("examples/hello_sine/sine.hlsl"))?;
+        let draw_pipeline = gpu_context.init_pipeline("examples/hello_sine/sine.hlsl")?;
         Ok(HelloSine {
             gpu_context,
             to_draw_texture,
