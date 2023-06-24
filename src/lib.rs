@@ -1,2 +1,2 @@
-pub use gpu;
-pub use window;
+pub use gpu::*;
+pub use window::*;

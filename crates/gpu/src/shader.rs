@@ -12,13 +12,6 @@ pub struct Shader {
     pub bindings: Vec<ReflectDescriptorBinding>,
 }
 
-pub enum Execution {
-    PerPixel1D,
-    PerPixel2D,
-    N3D(u32),
-    N1D(u32),
-}
-
 impl Shader {
     pub fn compile_shader(shader_file: &str) -> Result<Shader> {
         let code = std::fs::read_to_string(&shader_file)?;
@@ -68,30 +61,5 @@ impl Shader {
             bindings,
             push_constant_size,
         })
-    }
-}
-
-pub fn get_execution_dims(
-    workgroup_size: (u32, u32, u32),
-    execution_mode: Execution,
-    texture_size: (u32, u32),
-) -> (u32, u32, u32) {
-    match execution_mode {
-        Execution::PerPixel1D => (
-            (texture_size.0 * texture_size.1 + workgroup_size.0 - 1) / workgroup_size.0,
-            1u32,
-            1u32,
-        ),
-        Execution::PerPixel2D => (
-            (texture_size.0 + workgroup_size.0 - 1) / workgroup_size.0,
-            (texture_size.1 + workgroup_size.1 - 1) / workgroup_size.1,
-            1,
-        ),
-        Execution::N3D(n) => (
-            (n + workgroup_size.0 - 1) / workgroup_size.0,
-            (n + workgroup_size.1 - 1) / workgroup_size.1,
-            (n + workgroup_size.2 - 1) / workgroup_size.2,
-        ),
-        Execution::N1D(n) => ((n + workgroup_size.0 - 1) / workgroup_size.0, 1, 1),
     }
 }

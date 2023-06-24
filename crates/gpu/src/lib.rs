@@ -30,9 +30,9 @@ use self::encoder::EncoderType;
 use self::to_screen_pipeline::ToScreenPipeline;
 
 pub mod compute_pipeline;
-pub(crate) mod encoder;
+pub mod encoder;
 pub mod resources;
-pub mod shader;
+mod shader;
 mod to_screen_pipeline;
 
 #[allow(dead_code)]
