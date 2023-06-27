@@ -1,25 +1,17 @@
 use anyhow::Result;
-use std::sync::Arc;
 
 use gpu::{egui, CoGr};
-use window::{
-    input::Input,
-    main_loop::{main_loop_run, Game},
-    winit::{event::WindowEvent, event_loop::EventLoop, window::Window},
-};
+use window::{main_loop_run, Game, Input};
 
-pub struct HelloWorld {
-    pub gpu_context: CoGr,
-}
+pub struct HelloWorld {}
 
 impl Game for HelloWorld {
-    fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
-        let gpu_context = CoGr::new(window, event_loop)?;
-        Ok(HelloWorld { gpu_context })
+    fn on_init(_gpu: &mut CoGr) -> Result<Self> {
+        Ok(Self {})
     }
 
-    fn on_render(&mut self, _input: &mut Input, dt: f32) -> Result<()> {
-        let mut encoder = self.gpu_context.get_encoder_for_draw()?;
+    fn on_render(&mut self, gpu: &mut CoGr, _input: &mut Input, dt: f32) -> Result<()> {
+        let mut encoder = gpu.get_encoder_for_draw()?;
 
         encoder.draw_ui(|ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
@@ -30,11 +22,7 @@ impl Game for HelloWorld {
         Ok(())
     }
 
-    fn on_tick(&mut self, _dt: f32) -> Result<()> {
-        Ok(())
-    }
-    fn on_window_event(&mut self, event: &WindowEvent) -> Result<()> {
-        self.gpu_context.handle_window_event(event);
+    fn on_tick(&mut self, _gpu: &mut CoGr, _dt: f32) -> Result<()> {
         Ok(())
     }
 }

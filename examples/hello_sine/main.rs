@@ -5,17 +5,9 @@ use gpu::resources::ResourceHandle::T;
 use gpu::resources::TextureHandle;
 use gpu::resources::TextureRes::FullRes;
 use gpu::CoGr;
-use std::sync::Arc;
-use window::winit::event::WindowEvent;
-use window::winit::event_loop::EventLoop;
-use window::{
-    input::Input,
-    main_loop::{main_loop_run, Game},
-    winit::window::Window,
-};
+use window::{main_loop_run, Game, Input};
 
 pub struct HelloSine {
-    pub gpu_context: CoGr,
     pub to_draw_texture: TextureHandle,
     pub draw_pipeline: ComputePipeline,
     pub time: f32,
@@ -28,20 +20,18 @@ struct GpuData {
 }
 
 impl Game for HelloSine {
-    fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
-        let mut gpu_context = CoGr::new(window, event_loop)?;
-        let to_draw_texture = gpu_context.texture("to_draw", FullRes, gpu_context.config.format);
-        let draw_pipeline = gpu_context.init_pipeline("examples/hello_sine/sine.hlsl")?;
+    fn on_init(gpu: &mut CoGr) -> Result<Self> {
+        let to_draw_texture = gpu.texture("to_draw", FullRes, gpu.config.format);
+        let draw_pipeline = gpu.init_pipeline("examples/hello_sine/sine.hlsl")?;
         Ok(HelloSine {
-            gpu_context,
             to_draw_texture,
             draw_pipeline,
             time: 0f32,
         })
     }
 
-    fn on_render(&mut self, _input: &mut Input, dt: f32) -> Result<()> {
-        let mut encoder = self.gpu_context.get_encoder_for_draw()?;
+    fn on_render(&mut self, gpu: &mut CoGr, _input: &mut Input, dt: f32) -> Result<()> {
+        let mut encoder = gpu.get_encoder_for_draw()?;
 
         self.time += dt;
         let gpu_data = GpuData { time: self.time };
@@ -56,10 +46,7 @@ impl Game for HelloSine {
         Ok(())
     }
 
-    fn on_tick(&mut self, _dt: f32) -> Result<()> {
-        Ok(())
-    }
-    fn on_window_event(&mut self, _event: &WindowEvent) -> Result<()> {
+    fn on_tick(&mut self, _gpu: &mut CoGr, _dt: f32) -> Result<()> {
         Ok(())
     }
 }

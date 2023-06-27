@@ -1,5 +1,4 @@
 use std::f32::consts::PI;
-use std::sync::Arc;
 
 use crate::bvh::{cross, BVHNode};
 use anyhow::Result;
@@ -9,18 +8,11 @@ use gpu::compute_pipeline::ComputePipeline;
 use gpu::resources::ResourceHandle::{B, T};
 use gpu::resources::{BufferHandle, TextureHandle, TextureRes};
 use gpu::{egui, CoGr};
-use window::winit::event::WindowEvent;
-use window::winit::event_loop::EventLoop;
-use window::{
-    input::Input,
-    main_loop::{main_loop_run, Game},
-    winit::window::Window,
-};
+use window::{main_loop_run, Game, Input};
 
 mod bvh;
 
 struct RayTracer {
-    pub gpu_context: CoGr,
     pub time: f32,
     pub distance: f32,
     to_draw: TextureHandle,
@@ -55,38 +47,31 @@ const HEIGHT: u32 = 720;
 const HALF_HEIGHT: u32 = HEIGHT / 2;
 
 impl Game for RayTracer {
-    fn on_init(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
-        let mut gpu_context = CoGr::new(window, event_loop)?;
-
+    fn on_init(gpu: &mut CoGr) -> Result<Self> {
         let mut bvh = Bvh::new("examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
 
-        let to_draw = gpu_context.texture(
-            "to_draw_texture",
-            TextureRes::FullRes,
-            gpu_context.config.format,
-        );
-        let triangles = gpu_context.buffer(
+        let to_draw = gpu.texture("to_draw_texture", TextureRes::FullRes, gpu.config.format);
+        let triangles = gpu.buffer(
             "triangles",
             bvh.triangles.len(),
             std::mem::size_of::<[Point; 4]>() as u32,
         );
-        let bvh_nodes = gpu_context.buffer(
+        let bvh_nodes = gpu.buffer(
             "bvh_nodes",
             bvh.bvh_nodes.len(),
             std::mem::size_of::<BVHNode>() as u32,
         );
 
         {
-            let mut encoder = gpu_context.get_encoder()?;
+            let mut encoder = gpu.get_encoder()?;
             encoder.set_buffer_data(&triangles, bvh.triangles)?;
             encoder.set_buffer_data(&bvh_nodes, bvh.bvh_nodes)?;
         }
 
-        let trace_pipeline = gpu_context.init_pipeline("examples/ray_tracer/trace.hlsl")?;
+        let trace_pipeline = gpu.init_pipeline("examples/ray_tracer/trace.hlsl")?;
 
         Ok(RayTracer {
-            gpu_context,
             time: 0f32,
             distance: -1f32,
             to_draw,
@@ -99,7 +84,7 @@ impl Game for RayTracer {
         })
     }
 
-    fn on_render(&mut self, input: &mut Input, dt: f32) -> Result<()> {
+    fn on_render(&mut self, gpu: &mut CoGr, input: &mut Input, dt: f32) -> Result<()> {
         self.time += 0.001 * PI;
         if self.timings_ptr < self.timings.len() {
             self.timings[self.timings_ptr] = dt;
@@ -134,7 +119,7 @@ impl Game for RayTracer {
             padding3: 0,
         };
 
-        let mut encoder = self.gpu_context.get_encoder_for_draw()?;
+        let mut encoder = gpu.get_encoder_for_draw()?;
         encoder.dispatch_pipeline(
             &mut self.trace_pipeline,
             (WIDTH / 32, HEIGHT / 32, 1),
@@ -152,11 +137,7 @@ impl Game for RayTracer {
         Ok(())
     }
 
-    fn on_tick(&mut self, _dt: f32) -> Result<()> {
-        Ok(())
-    }
-    fn on_window_event(&mut self, event: &WindowEvent) -> Result<()> {
-        self.gpu_context.handle_window_event(event);
+    fn on_tick(&mut self, _gpu: &mut CoGr, _dt: f32) -> Result<()> {
         Ok(())
     }
 }

@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 winit = "0.28"
 anyhow = "1.0"
+gpu = { path = "../gpu" }
