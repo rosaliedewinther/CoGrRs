@@ -1,14 +1,11 @@
 use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
-use gpu::compute_pipeline::ComputePipeline;
-use gpu::resources::ResourceHandle::T;
-use gpu::resources::TextureHandle;
-use gpu::resources::TextureRes::FullRes;
-use gpu::CoGr;
-use window::{main_loop_run, Game, Input};
+use cogrrs::resources::TextureRes::FullRes;
+use cogrrs::{compute_pipeline::ComputePipeline, resources::ResourceHandle, CoGr, Game};
+use cogrrs::{main_loop_run, Input};
 
 pub struct HelloSine {
-    pub to_draw_texture: TextureHandle,
+    pub to_draw_texture: ResourceHandle,
     pub draw_pipeline: ComputePipeline,
     pub time: f32,
 }
@@ -22,7 +19,7 @@ struct GpuData {
 impl Game for HelloSine {
     fn on_init(gpu: &mut CoGr) -> Result<Self> {
         let to_draw_texture = gpu.texture("to_draw", FullRes, gpu.config.format);
-        let draw_pipeline = gpu.init_pipeline("examples/hello_sine/sine.hlsl")?;
+        let draw_pipeline = gpu.pipeline("examples/hello_sine/sine.hlsl")?;
         Ok(HelloSine {
             to_draw_texture,
             draw_pipeline,
@@ -39,7 +36,7 @@ impl Game for HelloSine {
             &mut self.draw_pipeline,
             (1280 / 32, 720 / 32, 1),
             &gpu_data,
-            &[T(&self.to_draw_texture)],
+            &[&self.to_draw_texture],
         )?;
         encoder.to_screen(&self.to_draw_texture)?;
 

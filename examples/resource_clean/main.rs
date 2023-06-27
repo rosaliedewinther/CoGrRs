@@ -1,10 +1,8 @@
 use anyhow::Result;
-
-use gpu::{egui, resources::BufferHandle, CoGr};
-use window::{main_loop_run, Game, Input};
+use cogrrs::{main_loop_run, resources::ResourceHandle, CoGr, Game, Input};
 
 pub struct HelloWorld {
-    _buffer_handle: BufferHandle,
+    _buffer_handle: ResourceHandle,
     first_print: u32,
 }
 

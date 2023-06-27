@@ -1,7 +1,5 @@
 use anyhow::Result;
-
-use gpu::{egui, CoGr};
-use window::{main_loop_run, Game, Input};
+use cogrrs::{main_loop_run, CoGr, Game, Input};
 
 pub struct HelloWorld {}
 
