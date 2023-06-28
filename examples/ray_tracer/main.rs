@@ -4,11 +4,7 @@ use crate::bvh::{cross, BVHNode};
 use anyhow::Result;
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
-use cogrrs::compute_pipeline::ComputePipeline;
-use cogrrs::egui;
-use cogrrs::resources::{ResourceHandle, TextureRes};
-use cogrrs::CoGr;
-use cogrrs::{main_loop_run, Game, Input};
+use cogrrs::{egui, main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureRes};
 
 mod bvh;
 
@@ -18,7 +14,7 @@ struct RayTracer {
     to_draw: ResourceHandle,
     triangles: ResourceHandle,
     bvh_nodes: ResourceHandle,
-    trace_pipeline: ComputePipeline,
+    trace_pipeline: Pipeline,
     timings: [f32; 1000],
     timings_ptr: usize,
     saved_timing: f32,

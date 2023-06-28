@@ -1,35 +1,29 @@
+pub use encoder::*;
+pub use pipeline::*;
+pub use resources::*;
+pub use wgpu;
+pub use winit;
+
+use self::to_screen_pipeline::ToScreenPipeline;
 use anyhow::anyhow;
 use anyhow::Result;
 use egui_winit::State;
-use resources::BufferSize;
-use resources::ResourceHandle;
-use resources::ResourcePool;
-use resources::TextureRes;
+use log::info;
 use std::fmt::Debug;
 use std::sync::Arc;
-pub use wgpu;
 use wgpu::Backends;
 use wgpu::Buffer;
 use wgpu::InstanceDescriptor;
 use wgpu::TextureFormat;
+use wgpu::TextureFormat::{Bgra8Unorm, Rgba8Unorm};
 use wgpu::{Texture, TextureView};
-pub use winit;
 use winit::event::WindowEvent;
 use winit::event_loop::EventLoop;
 use winit::window::Window;
 
-use wgpu::TextureFormat::{Bgra8Unorm, Rgba8Unorm};
-
-use log::info;
-
-use self::compute_pipeline::ComputePipeline;
-use self::encoder::Encoder;
-use self::encoder::EncoderType;
-use self::to_screen_pipeline::ToScreenPipeline;
-
-pub mod compute_pipeline;
-pub mod encoder;
-pub mod resources;
+mod encoder;
+mod pipeline;
+mod resources;
 mod shader;
 mod to_screen_pipeline;
 
@@ -54,7 +48,7 @@ pub(crate) struct TextureDescriptor {
 #[derive(Debug)]
 struct PipelineDescriptor {
     name: &'static str,
-    pipeline: ComputePipeline,
+    pipeline: Pipeline,
     workgroup_size: (u32, u32, u32),
 }
 #[allow(dead_code)]
@@ -212,25 +206,10 @@ impl CoGr {
     pub fn handle_window_event(&mut self, event: &WindowEvent) {
         let _ = self.state.on_event(&self.context, event);
     }
-    pub fn pipeline(&mut self, shader_file: &str) -> Result<ComputePipeline> {
-        Ok(ComputePipeline::new(self, shader_file))
+    pub fn pipeline(&mut self, shader_file: &str) -> Result<Pipeline> {
+        Ok(Pipeline::new(self, shader_file))
     }
-    pub fn log_state(&self) {
-        println!("Textures:");
-        for handle in &self.resource_pool.texture_handles {
-            println!(
-                "{:?}: {:#?}",
-                handle,
-                self.resource_pool.grab_texture(handle)
-            );
-        }
-        println!("Buffers:");
-        for handle in &self.resource_pool.buffer_handles {
-            println!(
-                "{:?}: {:#?}",
-                handle,
-                self.resource_pool.grab_buffer(handle)
-            );
-        }
+    pub fn print_resources(&self) {
+        self.resource_pool.print_resources();
     }
 }

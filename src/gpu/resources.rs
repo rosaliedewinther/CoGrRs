@@ -155,7 +155,7 @@ impl ResourceHandle {
 }
 
 #[derive(Default)]
-pub struct ResourcePool {
+pub(crate) struct ResourcePool {
     pub recreate_resources: bool,
     pub buffers: Vec<Buffer>,
     pub textures: Vec<Texture>,
@@ -256,6 +256,14 @@ impl ResourcePool {
             i += 1;
         }
 
+        if self.recreate_resources {
+            self.textures.iter_mut().for_each(|texture| {
+                texture.texture = None;
+                texture.texture_view = None;
+            });
+            self.recreate_resources = false;
+        }
+
         self.textures.iter_mut().for_each(|texture| {
             if texture.texture.is_none() {
                 let (new_texture, new_texture_view) = init_texture(
@@ -282,7 +290,7 @@ impl ResourcePool {
     }
 }
 
-pub fn init_texture(
+pub(crate) fn init_texture(
     device: &wgpu::Device,
     texture_name: &str,
     dims: (u32, u32, u32),
@@ -334,7 +342,7 @@ pub fn init_texture(
     Ok((texture, texture_view))
 }
 
-pub fn init_texture_with_data(
+pub(crate) fn init_texture_with_data(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     texture_name: &str,
@@ -394,7 +402,11 @@ pub fn init_texture_with_data(
     Ok((texture, texture_view))
 }
 
-pub fn init_storage_buffer(device: &wgpu::Device, buffer_name: &str, size: u64) -> wgpu::Buffer {
+pub(crate) fn init_storage_buffer(
+    device: &wgpu::Device,
+    buffer_name: &str,
+    size: u64,
+) -> wgpu::Buffer {
     device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(buffer_name),
         size,

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cogrrs::{main_loop_run, resources::ResourceHandle, CoGr, Game, Input};
+use cogrrs::{main_loop_run, CoGr, Game, Input, ResourceHandle};
 
 pub struct HelloWorld {
     _buffer_handle: ResourceHandle,
@@ -17,7 +17,7 @@ impl Game for HelloWorld {
         gpu.buffer("buffer_6", 256usize, 8);
         gpu.buffer("buffer_7", 256usize, 8);
 
-        gpu.log_state();
+        gpu.print_resources();
 
         Ok(HelloWorld {
             _buffer_handle: buffer_5,
@@ -28,7 +28,7 @@ impl Game for HelloWorld {
     fn on_render(&mut self, gpu: &mut CoGr, _input: &mut Input, dt: f32) -> Result<()> {
         if self.first_print < 2 {
             // after a get_encoder call, all buffer handles that no longer exist will be deleted
-            gpu.log_state();
+            gpu.print_resources();
             self.first_print += 1;
         }
 

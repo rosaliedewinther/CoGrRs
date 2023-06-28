@@ -5,7 +5,7 @@ use crate::gpu::shader::Shader;
 use super::CoGr;
 
 #[derive(Debug)]
-pub struct ComputePipeline {
+pub struct Pipeline {
     pub pipeline: wgpu::ComputePipeline,
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub last_bind_group: Option<wgpu::BindGroup>,
@@ -69,7 +69,7 @@ fn map_texture_format(format: &ReflectImageFormat) -> wgpu::TextureFormat {
     }
 }
 
-impl ComputePipeline {
+impl Pipeline {
     pub(crate) fn new(gpu_context: &CoGr, shader_file: &str) -> Self {
         let shader = Shader::compile_shader(shader_file).unwrap();
         let shader_data: &[u32] = bytemuck::cast_slice(shader.shader.as_slice());
@@ -139,7 +139,7 @@ impl ComputePipeline {
                     entry_point: "main",
                 });
 
-        ComputePipeline {
+        Pipeline {
             pipeline,
             bind_group_layout,
             last_bind_group: None,

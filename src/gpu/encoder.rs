@@ -2,7 +2,7 @@ use std::mem::size_of_val;
 
 use anyhow::{anyhow, Context, Result};
 
-use crate::compute_pipeline::ComputePipeline;
+use crate::gpu::Pipeline;
 use bytemuck::Pod;
 use egui_wgpu::renderer::ScreenDescriptor;
 use log::info;
@@ -12,7 +12,8 @@ use wgpu::{
     CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView,
 };
 
-use crate::resources::{init_texture_with_data, ResourceHandle};
+use crate::gpu::ResourceHandle;
+use crate::init_texture_with_data;
 use crate::CoGr;
 
 use super::to_screen_pipeline::ToScreenPipeline;
@@ -86,7 +87,7 @@ impl<'a> Encoder<'a> {
     // todo: change resources to accept either texture or buffer handle
     pub fn dispatch_pipeline<PushConstants: Pod>(
         &mut self,
-        pipeline: &mut ComputePipeline,
+        pipeline: &mut Pipeline,
         work_groups: (u32, u32, u32),
         push_constants: &PushConstants,
         resources: &[&ResourceHandle],
@@ -189,7 +190,7 @@ impl<'a> Encoder<'a> {
         let texture = self.gpu_context.resource_pool.grab_texture(texture);
 
         match texture.resolution {
-            crate::resources::TextureRes::Custom(x, y, z) => {
+            crate::gpu::TextureRes::Custom(x, y, z) => {
                 let bytes_per_pixel = texture
                     .format
                     .block_size(None)

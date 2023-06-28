@@ -1,12 +1,12 @@
 use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
-use cogrrs::resources::TextureRes::FullRes;
-use cogrrs::{compute_pipeline::ComputePipeline, resources::ResourceHandle, CoGr, Game};
+use cogrrs::TextureRes::FullRes;
 use cogrrs::{main_loop_run, Input};
+use cogrrs::{CoGr, Game, Pipeline, ResourceHandle};
 
 pub struct HelloSine {
     pub to_draw_texture: ResourceHandle,
-    pub draw_pipeline: ComputePipeline,
+    pub draw_pipeline: Pipeline,
     pub time: f32,
 }
 
