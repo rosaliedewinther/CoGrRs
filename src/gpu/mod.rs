@@ -144,28 +144,19 @@ impl CoGr {
             last_to_screen_pipeline: None,
         })
     }
-    pub fn get_encoder_for_draw(&mut self) -> Result<Encoder> {
-        self.resource_pool
-            .prepare_resources(&self.device, &self.config);
+    pub fn get_encoder_for_draw(&mut self) -> Result<DrawEncoder> {
         let surface_texture = self.surface.get_current_texture()?;
-
         let texture_view_config = wgpu::TextureViewDescriptor {
             format: Some(self.config.format),
             ..Default::default()
         };
-
         let surface_texture_view = surface_texture.texture.create_view(&texture_view_config);
+        let encoder = self.get_encoder()?;
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-        encoder.push_debug_group("user_encoder_for_draw");
-        Ok(Encoder {
+        Ok(DrawEncoder {
             encoder: Some(encoder),
-            gpu_context: self,
-            encoder_type: EncoderType::Draw(Some(surface_texture), surface_texture_view),
+            surface_texture: Some(surface_texture),
+            texture_view: surface_texture_view,
         })
     }
     pub fn get_encoder(&mut self) -> Result<Encoder> {
@@ -178,9 +169,8 @@ impl CoGr {
             });
         encoder.push_debug_group("user_encoder");
         Ok(Encoder {
-            encoder: Some(encoder),
+            command_encoder: Some(encoder),
             gpu_context: self,
-            encoder_type: EncoderType::NonDraw,
         })
     }
     pub fn buffer<S: Into<BufferSize>>(

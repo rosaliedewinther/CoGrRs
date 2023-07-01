@@ -31,7 +31,6 @@ impl Game for HelloWorld {
             gpu.print_resources();
             self.first_print += 1;
         }
-
         let mut encoder = gpu.get_encoder_for_draw()?;
         encoder.draw_ui(|ctx| {
             egui::Window::new("debug").show(ctx, |ui| {

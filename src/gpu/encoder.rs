@@ -1,6 +1,7 @@
 use std::mem::size_of_val;
+use std::ops::{Deref, DerefMut};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 
 use crate::gpu::Pipeline;
 use bytemuck::Pod;
@@ -24,58 +25,67 @@ pub enum EncoderType {
 }
 
 pub struct Encoder<'a> {
-    pub(crate) encoder: Option<CommandEncoder>,
+    pub(crate) command_encoder: Option<CommandEncoder>,
     pub(crate) gpu_context: &'a mut CoGr,
-    pub(crate) encoder_type: EncoderType,
 }
 
-impl<'a> Encoder<'a> {
+pub struct DrawEncoder<'a> {
+    pub(crate) encoder: Option<Encoder<'a>>,
+    pub(crate) surface_texture: Option<SurfaceTexture>,
+    pub(crate) texture_view: TextureView,
+}
+
+impl<'a> Deref for DrawEncoder<'a> {
+    type Target = Encoder<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        self.encoder.as_ref().expect("There was no encoder")
+    }
+}
+
+impl<'a> DerefMut for DrawEncoder<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.encoder.as_mut().expect("There was no encoder")
+    }
+}
+
+impl<'a> DrawEncoder<'a> {
     pub fn to_screen(&mut self, to_screen_texture: &ResourceHandle) -> Result<()> {
-        let texture = self
-            .gpu_context
-            .resource_pool
-            .grab_texture(to_screen_texture);
+        let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
+        let ctx = &mut encoder.gpu_context;
+        let command_encoder = encoder
+            .command_encoder
+            .as_mut()
+            .context("encoder not available")?;
+        let texture = ctx.resource_pool.grab_texture(to_screen_texture);
         let texture_view = texture.texture_view.as_ref().unwrap();
 
-        let encoder = self.encoder.as_mut().context("encoder not available")?;
-        let mut render_pass = match &self.encoder_type {
-            EncoderType::NonDraw => {
-                Err(anyhow!("non draw encoder was used for to_screen rendering"))?
-            }
-            EncoderType::Draw(_, texture_view) => {
-                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Render Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: texture_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: true,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                })
-            }
-        };
+        let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
 
-        if self.gpu_context.last_to_screen_texture_handle.is_none()
-            || !to_screen_texture.ptr_eq(
-                self.gpu_context
-                    .last_to_screen_texture_handle
-                    .as_ref()
-                    .unwrap(),
-            )
+        if ctx.last_to_screen_texture_handle.is_none()
+            || !to_screen_texture.ptr_eq(ctx.last_to_screen_texture_handle.as_ref().unwrap())
         {
-            self.gpu_context.last_to_screen_texture_handle = Some(to_screen_texture.clone());
-            self.gpu_context.last_to_screen_pipeline = Some(ToScreenPipeline::new(
-                &self.gpu_context.device,
+            ctx.last_to_screen_texture_handle = Some(to_screen_texture.clone());
+            ctx.last_to_screen_pipeline = Some(ToScreenPipeline::new(
+                &ctx.device,
                 texture_view,
-                self.gpu_context.config.format,
+                ctx.config.format,
             ));
         }
 
         // run pipeline
-        let pipeline = self.gpu_context.last_to_screen_pipeline.as_ref().unwrap();
+        let pipeline = ctx.last_to_screen_pipeline.as_ref().unwrap();
         render_pass.set_pipeline(&pipeline.pipeline); // 2.
         render_pass.set_bind_group(0, &pipeline.bindgroup, &[]);
         render_pass.set_index_buffer(pipeline.index_buffer.slice(..), Uint16);
@@ -84,6 +94,59 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
+    pub fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context)) -> Result<()> {
+        let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
+        let ctx = &mut encoder.gpu_context;
+        let command_encoder = encoder
+            .command_encoder
+            .as_mut()
+            .context("encoder not available")?;
+
+        let screen_descriptor = ScreenDescriptor {
+            size_in_pixels: [ctx.config.width, ctx.config.height],
+            pixels_per_point: 1f32,
+        };
+        let full_output = ctx
+            .context
+            .run(ctx.state.take_egui_input(ctx.window.as_ref()), |ctx| {
+                ui_builder(ctx)
+            });
+
+        let paint_jobs = ctx.context.tessellate(full_output.shapes);
+        let tdelta = full_output.textures_delta;
+
+        {
+            for d in tdelta.set {
+                ctx.renderer
+                    .update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
+            }
+            ctx.renderer.update_buffers(
+                &ctx.device,
+                &ctx.queue,
+                command_encoder,
+                &paint_jobs,
+                &screen_descriptor,
+            );
+
+            let mut render_pass = command_encoder.begin_render_pass(&RenderPassDescriptor {
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.texture_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: true,
+                    },
+                })],
+                ..Default::default()
+            });
+            ctx.renderer
+                .render(&mut render_pass, paint_jobs.as_slice(), &screen_descriptor);
+        }
+        Ok(())
+    }
+}
+
+impl Encoder<'_> {
     // todo: change resources to accept either texture or buffer handle
     pub fn dispatch_pipeline<PushConstants: Pod>(
         &mut self,
@@ -92,7 +155,10 @@ impl<'a> Encoder<'a> {
         push_constants: &PushConstants,
         resources: &[&ResourceHandle],
     ) -> Result<()> {
-        let encoder = self.encoder.as_mut().context("encoder not available")?;
+        let encoder = self
+            .command_encoder
+            .as_mut()
+            .context("encoder not available")?;
 
         let mut compute_pass =
             encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
@@ -153,7 +219,10 @@ impl<'a> Encoder<'a> {
             buffer,
             data.len(),
         );
-        let encoder = self.encoder.as_mut().context("encoder not available")?;
+        let encoder = self
+            .command_encoder
+            .as_mut()
+            .context("encoder not available")?;
         let buffer = self.gpu_context.resource_pool.grab_buffer(buffer);
         let uploading_buffer =
             self.gpu_context
@@ -186,7 +255,10 @@ impl<'a> Encoder<'a> {
             size_of_val(data)
         );
 
-        let encoder = self.encoder.as_mut().context("encoder not available")?;
+        let encoder = self
+            .command_encoder
+            .as_mut()
+            .context("encoder not available")?;
         let texture = self.gpu_context.resource_pool.grab_texture(texture);
 
         match texture.resolution {
@@ -237,82 +309,21 @@ impl<'a> Encoder<'a> {
 
         Ok(())
     }
-
-    pub fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context)) -> Result<()> {
-        let ctx = &mut self.gpu_context;
-        let encoder = self.encoder.as_mut().context("encoder not available")?;
-
-        let screen_descriptor = ScreenDescriptor {
-            size_in_pixels: [ctx.config.width, ctx.config.height],
-            pixels_per_point: 1f32,
-        };
-        let full_output = ctx
-            .context
-            .run(ctx.state.take_egui_input(ctx.window.as_ref()), |ctx| {
-                ui_builder(ctx)
-            });
-
-        let paint_jobs = ctx.context.tessellate(full_output.shapes);
-        let tdelta = full_output.textures_delta;
-
-        {
-            for d in tdelta.set {
-                ctx.renderer
-                    .update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
-            }
-            ctx.renderer.update_buffers(
-                &ctx.device,
-                &ctx.queue,
-                encoder,
-                &paint_jobs,
-                &screen_descriptor,
-            );
-
-            match &self.encoder_type {
-                EncoderType::NonDraw => Err(anyhow!(
-                    "Tried to draw without using get_encoder_for_draw()"
-                ))?,
-                EncoderType::Draw(_, texture_view) => {
-                    let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: texture_view,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Load,
-                                store: true,
-                            },
-                        })],
-                        ..Default::default()
-                    });
-                    ctx.renderer.render(
-                        &mut render_pass,
-                        paint_jobs.as_slice(),
-                        &screen_descriptor,
-                    );
-                }
-            }
-        }
-        Ok(())
-    }
 }
 
 impl<'a> Drop for Encoder<'a> {
     fn drop(&mut self) {
-        match &mut self.encoder_type {
-            EncoderType::Draw(texture, _) => {
-                self.encoder.as_mut().unwrap().pop_debug_group();
-                self.gpu_context
-                    .queue
-                    .submit(std::iter::once(self.encoder.take().unwrap().finish()));
-                let surface = texture.take().unwrap();
-                surface.present();
-            }
-            EncoderType::NonDraw => {
-                self.encoder.as_mut().unwrap().pop_debug_group();
-                self.gpu_context
-                    .queue
-                    .submit(std::iter::once(self.encoder.take().unwrap().finish()));
-            }
-        }
+        self.command_encoder.as_mut().unwrap().pop_debug_group();
+        self.gpu_context.queue.submit(std::iter::once(
+            self.command_encoder.take().unwrap().finish(),
+        ));
+    }
+}
+
+impl<'a> Drop for DrawEncoder<'a> {
+    fn drop(&mut self) {
+        drop(self.encoder.take());
+        let surface = self.surface_texture.take().unwrap();
+        surface.present();
     }
 }
