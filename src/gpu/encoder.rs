@@ -1,3 +1,5 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::mem::size_of_val;
 use std::ops::{Deref, DerefMut};
 
@@ -162,43 +164,48 @@ impl Encoder<'_> {
 
         let mut compute_pass =
             encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
-
-        let bind_group_entries = resources
-            .iter()
-            .enumerate()
-            .map(|(i, val)| wgpu::BindGroupEntry {
-                binding: i as u32,
-                resource: match val {
-                    ResourceHandle::Texture(_) => wgpu::BindingResource::TextureView(
-                        self.gpu_context
+        // hash resources to check if we can reuse the previous bind group of this pipeline
+        let mut hasher = DefaultHasher::new();
+        resources.hash(&mut hasher);
+        let last_bind_group_hash = hasher.finish();
+        if last_bind_group_hash != pipeline.last_bind_group_hash {
+            let bind_group_entries = resources
+                .iter()
+                .enumerate()
+                .map(|(i, val)| wgpu::BindGroupEntry {
+                    binding: i as u32,
+                    resource: match val {
+                        ResourceHandle::Texture(_) => wgpu::BindingResource::TextureView(
+                            self.gpu_context
+                                .resource_pool
+                                .grab_texture(val)
+                                .texture_view
+                                .as_ref()
+                                .unwrap(),
+                        ),
+                        ResourceHandle::Buffer(_) => self
+                            .gpu_context
                             .resource_pool
-                            .grab_texture(val)
-                            .texture_view
+                            .grab_buffer(val)
+                            .buffer
                             .as_ref()
-                            .unwrap(),
-                    ),
-                    ResourceHandle::Buffer(_) => self
-                        .gpu_context
-                        .resource_pool
-                        .grab_buffer(val)
-                        .buffer
-                        .as_ref()
-                        .unwrap()
-                        .as_entire_binding(),
-                },
-            })
-            .collect::<Vec<wgpu::BindGroupEntry>>();
+                            .unwrap()
+                            .as_entire_binding(),
+                    },
+                })
+                .collect::<Vec<wgpu::BindGroupEntry>>();
 
-        let bind_group = self
-            .gpu_context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("resources bind group"),
-                layout: &pipeline.bind_group_layout,
-                entries: bind_group_entries.as_slice(),
-            });
+            let bind_group =
+                self.gpu_context
+                    .device
+                    .create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("resources bind group"),
+                        layout: &pipeline.bind_group_layout,
+                        entries: bind_group_entries.as_slice(),
+                    });
 
-        pipeline.last_bind_group = Some(bind_group);
+            pipeline.last_bind_group = Some(bind_group);
+        }
 
         compute_pass.set_pipeline(&pipeline.pipeline);
         compute_pass.set_bind_group(0, pipeline.last_bind_group.as_ref().unwrap(), &[]);

@@ -8,6 +8,7 @@ use super::CoGr;
 pub struct Pipeline {
     pub pipeline: wgpu::ComputePipeline,
     pub bind_group_layout: wgpu::BindGroupLayout,
+    pub last_bind_group_hash: u64,
     pub last_bind_group: Option<wgpu::BindGroup>,
 }
 
@@ -145,6 +146,7 @@ impl Pipeline {
         Pipeline {
             pipeline,
             bind_group_layout,
+            last_bind_group_hash: 0,
             last_bind_group: None,
         }
     }

@@ -1,5 +1,9 @@
 use parking_lot::Mutex;
-use std::{ops::Sub, sync::Arc};
+use std::{
+    hash::{Hash, Hasher},
+    ops::Sub,
+    sync::Arc,
+};
 
 use anyhow::{anyhow, Result};
 use std::fmt::Debug;
@@ -155,6 +159,15 @@ impl ResourceHandle {
             (ResourceHandle::Texture(h1), ResourceHandle::Buffer(h2)) => Arc::ptr_eq(h1, h2),
             (ResourceHandle::Buffer(h1), ResourceHandle::Texture(h2)) => Arc::ptr_eq(h1, h2),
             (ResourceHandle::Buffer(h1), ResourceHandle::Buffer(h2)) => Arc::ptr_eq(h1, h2),
+        }
+    }
+}
+
+impl Hash for ResourceHandle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            ResourceHandle::Texture(t) => t.data_ptr().hash(state),
+            ResourceHandle::Buffer(b) => b.data_ptr().hash(state),
         }
     }
 }
