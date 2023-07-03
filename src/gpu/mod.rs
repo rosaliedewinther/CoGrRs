@@ -177,7 +177,7 @@ impl CoGr {
         &mut self,
         name: &str,
         elements: S,
-        element_size: u32,
+        element_size: usize,
     ) -> ResourceHandle {
         let elements = elements.into();
         self.resource_pool

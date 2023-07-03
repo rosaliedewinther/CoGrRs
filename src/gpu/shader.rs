@@ -5,7 +5,7 @@ use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
 pub struct Shader {
     pub file: String,
     pub shader: Vec<u8>,
-    pub push_constant_size: u32,
+    pub push_constant_size: Option<u32>,
     pub cg_x: u32, //compute group size x
     pub cg_y: u32,
     pub cg_z: u32,
@@ -36,8 +36,8 @@ impl Shader {
             .map_err(|val| anyhow!(val.to_string()))?;
 
         let push_constant_size = match push_constant_blocks.len() {
-            0 => 0,
-            1 => push_constant_blocks[0].size,
+            0 => None,
+            1 => Some(push_constant_blocks[0].size),
             n => panic!("{} push constant blocks found, only 1 or 0 are allowed", n),
         };
 

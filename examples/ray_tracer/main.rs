@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, mem::size_of};
 
 use crate::bvh::{cross, BVHNode};
 use anyhow::Result;
@@ -48,16 +48,8 @@ impl Game for RayTracer {
         bvh.build_bvh();
 
         let to_draw = gpu.texture("to_draw_texture", TextureRes::FullRes, gpu.config.format);
-        let triangles = gpu.buffer(
-            "triangles",
-            bvh.triangles.len(),
-            std::mem::size_of::<[Point; 4]>() as u32,
-        );
-        let bvh_nodes = gpu.buffer(
-            "bvh_nodes",
-            bvh.bvh_nodes.len(),
-            std::mem::size_of::<BVHNode>() as u32,
-        );
+        let triangles = gpu.buffer("triangles", bvh.triangles.len(), size_of::<[Point; 4]>());
+        let bvh_nodes = gpu.buffer("bvh_nodes", bvh.bvh_nodes.len(), size_of::<BVHNode>());
 
         {
             let mut encoder = gpu.get_encoder()?;

@@ -54,11 +54,16 @@ impl From<usize> for BufferSize {
         BufferSize::Custom(value as u64)
     }
 }
+impl From<i32> for BufferSize {
+    fn from(value: i32) -> Self {
+        BufferSize::Custom(value as u64)
+    }
+}
 
 fn match_buffer_size(
     config: &wgpu::SurfaceConfiguration,
     elements: &BufferSize,
-    element_size: u32,
+    element_size: usize,
 ) -> u64 {
     let width = config.width as u64;
     let height = config.height as u64;
@@ -98,12 +103,12 @@ impl Texture {
 pub struct Buffer {
     pub name: String,
     pub elements: BufferSize,
-    pub element_size: u32,
+    pub element_size: usize,
     pub buffer: Option<wgpu::Buffer>,
 }
 
 impl Buffer {
-    pub fn new(name: String, elements: BufferSize, element_size: u32) -> Self {
+    pub fn new(name: String, elements: BufferSize, element_size: usize) -> Self {
         Self {
             name,
             elements,
@@ -188,7 +193,7 @@ impl ResourcePool {
         &mut self,
         name: String,
         elements: BufferSize,
-        element_size: u32,
+        element_size: usize,
     ) -> ResourceHandle {
         let buffer = Buffer::new(name, elements, element_size);
         let handle = ResourceHandle::new_b(self.buffers.len());

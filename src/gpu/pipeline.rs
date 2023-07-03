@@ -115,10 +115,13 @@ impl Pipeline {
                     entries: bind_group_layout_entries.as_slice(),
                 });
 
-        let push_constant_range_vec = vec![wgpu::PushConstantRange {
-            stages: wgpu::ShaderStages::COMPUTE,
-            range: 0..shader.push_constant_size,
-        }];
+        let push_constant_range_vec = match shader.push_constant_size {
+            Some(n) => vec![wgpu::PushConstantRange {
+                stages: wgpu::ShaderStages::COMPUTE,
+                range: 0..n,
+            }],
+            None => vec![],
+        };
 
         let pipeline_layout =
             gpu_context
