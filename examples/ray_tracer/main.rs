@@ -72,7 +72,7 @@ impl Game for RayTracer {
         })
     }
 
-    fn on_render(&mut self, gpu: &mut CoGr, input: &mut Input, dt: f32) -> Result<()> {
+    fn on_render(&mut self, gpu: &mut CoGr, input: &Input, dt: f32) -> Result<()> {
         self.time += 0.001 * PI;
         if self.timings_ptr < self.timings.len() {
             self.timings[self.timings_ptr] = dt;

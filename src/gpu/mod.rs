@@ -5,17 +5,15 @@ pub use wgpu;
 pub use winit;
 
 use self::to_screen_pipeline::ToScreenPipeline;
-use anyhow::anyhow;
 use anyhow::Result;
 use egui_winit::State;
-use log::info;
 use std::fmt::Debug;
 use std::sync::Arc;
 use wgpu::Backends;
 use wgpu::Buffer;
 use wgpu::InstanceDescriptor;
 use wgpu::TextureFormat;
-use wgpu::TextureFormat::{Bgra8Unorm, Rgba8Unorm};
+use wgpu::TextureFormat::Bgra8Unorm;
 use wgpu::{Texture, TextureView};
 use winit::event::WindowEvent;
 use winit::event_loop::EventLoop;
@@ -106,22 +104,15 @@ impl CoGr {
             },
             None, // Trace path
         ))?;
-        let formats = surface.get_capabilities(&adapter).formats;
-        info!("supported swapchain surface formats: {:?}", formats);
-        let surface_format = match (formats.contains(&Rgba8Unorm), formats.contains(&Bgra8Unorm)) {
-            (true, _) => Rgba8Unorm,
-            (_, true) => Bgra8Unorm,
-            _ => Err(anyhow!("neither Rgba8Unorm nor Bgra8Unorm is supported"))?,
-        };
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
+            format: Bgra8Unorm,
             width: window.inner_size().width,
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::Immediate,
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
-            view_formats: vec![surface_format],
+            view_formats: vec![Bgra8Unorm],
         };
         surface.configure(&device, &config);
 

@@ -209,7 +209,9 @@ impl Encoder<'_> {
 
         compute_pass.set_pipeline(&pipeline.pipeline);
         compute_pass.set_bind_group(0, pipeline.last_bind_group.as_ref().unwrap(), &[]);
-        compute_pass.set_push_constants(0, bytemuck::bytes_of(push_constants));
+        if size_of_val(push_constants) != 0 {
+            compute_pass.set_push_constants(0, bytemuck::bytes_of(push_constants));
+        }
         compute_pass.dispatch_workgroups(work_groups.0, work_groups.1, work_groups.2);
 
         Ok(())

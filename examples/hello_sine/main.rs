@@ -27,7 +27,7 @@ impl Game for HelloSine {
         })
     }
 
-    fn on_render(&mut self, gpu: &mut CoGr, _input: &mut Input, dt: f32) -> Result<()> {
+    fn on_render(&mut self, gpu: &mut CoGr, _input: &Input, dt: f32) -> Result<()> {
         let mut encoder = gpu.get_encoder_for_draw()?;
 
         self.time += dt;

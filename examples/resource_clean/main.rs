@@ -25,7 +25,7 @@ impl Game for HelloWorld {
         })
     }
 
-    fn on_render(&mut self, gpu: &mut CoGr, _input: &mut Input, dt: f32) -> Result<()> {
+    fn on_render(&mut self, gpu: &mut CoGr, _input: &Input, dt: f32) -> Result<()> {
         if self.first_print < 2 {
             // after a get_encoder call, all buffer handles that no longer exist will be deleted
             gpu.print_resources();

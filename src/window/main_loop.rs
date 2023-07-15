@@ -11,7 +11,7 @@ use winit::window::WindowBuilder;
 pub trait Game: Sized {
     fn on_init(gpu: &mut CoGr) -> Result<Self>;
     fn on_tick(&mut self, gpu: &mut CoGr, dt: f32) -> Result<()>;
-    fn on_render(&mut self, gpu: &mut CoGr, input: &mut Input, dt: f32) -> Result<()>;
+    fn on_render(&mut self, gpu: &mut CoGr, input: &Input, dt: f32) -> Result<()>;
 }
 
 pub fn main_loop_run<T>(window_width: u32, window_height: u32, ticks_per_s: f32) -> Result<()>
@@ -69,7 +69,7 @@ where
         Event::RedrawRequested(_) => {
             let dt = on_render_timer.elapsed().as_secs_f32();
             on_render_timer = Instant::now();
-            match game.on_render(&mut gpu, &mut window_input, dt) {
+            match game.on_render(&mut gpu, &window_input, dt) {
                 Ok(_) => {
                     window_input.update();
                 }
