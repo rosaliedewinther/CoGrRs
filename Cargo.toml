@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 winit = { version = "0.28", default-features = false }
 wgpu = { version = "0.16", default-features = false, features = ["spirv"] }
+wgpu-profiler = "0.12.1"
 pollster = { version = "0.3", default-features = false }
 bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
 inline-spirv = { version = "0.1", default-features = false, features = [
@@ -18,6 +19,7 @@ spirv-reflect = "0.2"
 parking_lot = "0.12"
 anyhow = "1.0"
 hassle-rs = "0.10"
+itertools = "0.11"
 
 egui = "0.22"
 egui-wgpu = "0.22"

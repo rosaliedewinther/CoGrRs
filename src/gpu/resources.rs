@@ -216,29 +216,29 @@ impl ResourcePool {
     }
 
     pub fn print_resources(&self) {
-        self.buffers
-            .iter()
-            .enumerate()
-            .for_each(|(index, buffer)| println!(
-                    "Index {}: \n\tBuffer: {} \n\tElements: {:?} \n\tElement size: {} \n\tAllocated: {}",
-                    index,
-                    buffer.name,
-                    buffer.elements,
-                    buffer.element_size,
-                    buffer.buffer.is_some()
-                )
-            );
+        self.buffers.iter().enumerate().for_each(|(index, buffer)| {
+            println!(
+                "Index {}: \n\tBuffer: {} \n\tElements: {:?} \n\tElement size: {} \n\tAllocated: {}",
+                index,
+                buffer.name,
+                buffer.elements,
+                buffer.element_size,
+                buffer.buffer.is_some()
+            )
+        });
         self.textures
             .iter()
-            .enumerate().for_each(|(index, texture)|
+            .enumerate()
+            .for_each(|(index, texture)| {
                 println!(
-                    "Index {}: \n\tTexture: {} \n\tResolution: {:?} \n\tFormat: {:?} \n\tAllocated: {}",
-                    index,
-                    texture.name,
-                    texture.resolution,
-                    texture.format,
-                    texture.texture.is_some())
-                );
+                "Index {}: \n\tTexture: {} \n\tResolution: {:?} \n\tFormat: {:?} \n\tAllocated: {}",
+                index,
+                texture.name,
+                texture.resolution,
+                texture.format,
+                texture.texture.is_some()
+            )
+            });
     }
 
     pub fn prepare_resources(

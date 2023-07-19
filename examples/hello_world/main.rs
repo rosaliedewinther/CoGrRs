@@ -11,7 +11,7 @@ impl Game for HelloWorld {
     fn on_render(&mut self, gpu: &mut CoGr, _input: &Input, dt: f32) -> Result<()> {
         let mut encoder = gpu.get_encoder_for_draw()?;
 
-        encoder.draw_ui(|ctx| {
+        encoder.draw_ui(false, |ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
                 ui.label(format!("fps: {}", 1f32 / dt));
             });

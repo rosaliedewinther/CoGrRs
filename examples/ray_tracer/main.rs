@@ -116,7 +116,7 @@ impl Game for RayTracer {
         )?;
 
         encoder.to_screen(&self.to_draw)?;
-        encoder.draw_ui(|ctx| {
+        encoder.draw_ui(true, |ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
                 ui.label(format!("ms: {}", self.saved_timing * 1000f32));
             });

@@ -6,6 +6,7 @@ use super::CoGr;
 
 #[derive(Debug)]
 pub struct Pipeline {
+    pub pipeline_name: String,
     pub pipeline: wgpu::ComputePipeline,
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub last_bind_group_hash: u64,
@@ -144,6 +145,7 @@ impl Pipeline {
                 });
 
         Pipeline {
+            pipeline_name: shader_file.to_string(),
             pipeline,
             bind_group_layout,
             last_bind_group_hash: 0,

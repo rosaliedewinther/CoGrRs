@@ -326,6 +326,7 @@ dependencies = [
  "egui-winit",
  "hassle-rs",
  "inline-spirv",
+ "itertools",
  "log",
  "parking_lot",
  "pollster",
@@ -333,6 +334,7 @@ dependencies = [
  "rayon",
  "spirv-reflect",
  "wgpu",
+ "wgpu-profiler",
  "winit",
 ]
 
@@ -799,6 +801,15 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "itertools"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
 ]
 
 [[package]]
@@ -2038,6 +2049,15 @@ dependencies = [
  "web-sys",
  "wgpu-types",
  "winapi",
+]
+
+[[package]]
+name = "wgpu-profiler"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af8545365935dee884288860abc2a6920e904fff8a188205a848234376664796"
+dependencies = [
+ "wgpu",
 ]
 
 [[package]]

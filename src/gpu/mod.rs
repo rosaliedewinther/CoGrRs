@@ -2,11 +2,14 @@ pub use encoder::*;
 pub use pipeline::*;
 pub use resources::*;
 pub use wgpu;
+use wgpu_profiler::GpuProfiler;
+use wgpu_profiler::GpuTimerScopeResult;
 pub use winit;
 
 use self::to_screen_pipeline::ToScreenPipeline;
 use anyhow::Result;
 use egui_winit::State;
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
 use wgpu::Backends;
@@ -63,8 +66,11 @@ pub struct CoGr {
     pub config: wgpu::SurfaceConfiguration,
     window: Arc<Window>,
 
-    resource_pool: ResourcePool,
+    profiler: GpuProfiler,
+    frame_timings: VecDeque<Vec<GpuTimerScopeResult>>,
+    max_frame_history: u32,
 
+    resource_pool: ResourcePool,
     last_to_screen_texture_handle: Option<ResourceHandle>,
     last_to_screen_pipeline: Option<ToScreenPipeline>,
 
@@ -98,7 +104,9 @@ impl CoGr {
             &wgpu::DeviceDescriptor {
                 features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
                     | wgpu::Features::SPIRV_SHADER_PASSTHROUGH
-                    | wgpu::Features::PUSH_CONSTANTS,
+                    | wgpu::Features::PUSH_CONSTANTS
+                    | wgpu::Features::TIMESTAMP_QUERY
+                    | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES,
                 limits,
                 label: None,
             },
@@ -120,6 +128,8 @@ impl CoGr {
         let context = egui::Context::default();
         let state = egui_winit::State::new(event_loop);
 
+        let profiler = GpuProfiler::new(4, queue.get_timestamp_period(), device.features());
+
         Ok(Self {
             surface,
             device,
@@ -127,6 +137,10 @@ impl CoGr {
             config,
             window: window.clone(),
             resource_pool: ResourcePool::default(),
+
+            profiler,
+            frame_timings: VecDeque::new(),
+            max_frame_history: 100,
 
             renderer,
             context,
