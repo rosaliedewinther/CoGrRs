@@ -195,6 +195,7 @@ impl ResourcePool {
         resolution: TextureRes,
         format: wgpu::TextureFormat,
     ) -> ResourceHandle {
+        puffin::profile_function!();
         let texture = Texture::new(name, resolution, format);
         let handle = ResourceHandle::new_t(self.textures.len());
         self.textures.push(texture);
@@ -208,6 +209,7 @@ impl ResourcePool {
         elements: BufferSize,
         element_size: usize,
     ) -> ResourceHandle {
+        puffin::profile_function!();
         let buffer = Buffer::new(name, elements, element_size);
         let handle = ResourceHandle::new_b(self.buffers.len());
         self.buffers.push(buffer);
@@ -246,6 +248,7 @@ impl ResourcePool {
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
     ) {
+        puffin::profile_function!();
         // remove all resources which are only referenced by resource pool
         let mut i = 0;
         while i < self.buffer_handles.len() {

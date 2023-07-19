@@ -32,7 +32,7 @@ impl Game for HelloWorld {
             self.first_print += 1;
         }
         let mut encoder = gpu.get_encoder_for_draw()?;
-        encoder.draw_ui(false, |ctx| {
+        encoder.draw_ui(false, false, |ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
                 ui.label(format!("fps: {}", 1f32 / dt));
             });
@@ -47,6 +47,6 @@ impl Game for HelloWorld {
 }
 
 fn main() -> Result<()> {
-    main_loop_run::<HelloWorld>(1280, 720, 10f32)?;
+    main_loop_run::<HelloWorld>(10f32)?;
     Ok(())
 }

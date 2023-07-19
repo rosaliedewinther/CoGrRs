@@ -4,7 +4,9 @@ use crate::bvh::{cross, BVHNode};
 use anyhow::Result;
 use bvh::{normalize, Bvh, Point};
 use bytemuck::{Pod, Zeroable};
-use cogrrs::{egui, main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureRes};
+use cogrrs::{
+    div_ceil, egui, main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureRes,
+};
 
 mod bvh;
 
@@ -36,11 +38,6 @@ pub struct CameraData {
     padding2: u32,
     padding3: u32,
 }
-
-const WIDTH: u32 = 1280;
-const HALF_WIDTH: u32 = WIDTH / 2;
-const HEIGHT: u32 = 720;
-const HALF_HEIGHT: u32 = HEIGHT / 2;
 
 impl Game for RayTracer {
     fn on_init(gpu: &mut CoGr) -> Result<Self> {
@@ -74,6 +71,8 @@ impl Game for RayTracer {
 
     fn on_render(&mut self, gpu: &mut CoGr, input: &Input, dt: f32) -> Result<()> {
         self.time += 0.001 * PI;
+        let width = gpu.config.width;
+        let height = gpu.config.height;
         if self.timings_ptr < self.timings.len() {
             self.timings[self.timings_ptr] = dt;
             self.timings_ptr += 1;
@@ -97,10 +96,10 @@ impl Game for RayTracer {
             pos: ray_origin,
             side: ray_side,
             up: ray_up,
-            width: WIDTH as f32,
-            half_width: HALF_WIDTH as f32,
-            height: HEIGHT as f32,
-            half_height: HALF_HEIGHT as f32,
+            width: width as f32,
+            half_width: width as f32 / 2.0,
+            height: height as f32,
+            half_height: height as f32 / 2.0,
             time: self.time,
             padding1: 0,
             padding2: 0,
@@ -110,13 +109,13 @@ impl Game for RayTracer {
         let mut encoder = gpu.get_encoder_for_draw()?;
         encoder.dispatch_pipeline(
             &mut self.trace_pipeline,
-            (WIDTH / 32, HEIGHT / 32, 1),
+            (div_ceil(width, 32), div_ceil(height, 32), 1),
             &camera_data,
             &[&self.to_draw, &self.triangles, &self.bvh_nodes],
         )?;
 
         encoder.to_screen(&self.to_draw)?;
-        encoder.draw_ui(true, |ctx| {
+        encoder.draw_ui(true, true, |ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
                 ui.label(format!("ms: {}", self.saved_timing * 1000f32));
             });
@@ -131,6 +130,6 @@ impl Game for RayTracer {
 }
 
 fn main() -> Result<()> {
-    main_loop_run::<RayTracer>(WIDTH, HEIGHT, 10f32)?;
+    main_loop_run::<RayTracer>(10f32)?;
     Ok(())
 }

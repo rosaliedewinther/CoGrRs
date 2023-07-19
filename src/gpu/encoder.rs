@@ -57,6 +57,7 @@ impl<'a> DerefMut for DrawEncoder<'a> {
 
 impl<'a> DrawEncoder<'a> {
     pub fn to_screen(&mut self, to_screen_texture: &ResourceHandle) -> Result<()> {
+        puffin::profile_function!();
         let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
         let ctx = &mut encoder.gpu_context;
         let command_encoder = encoder
@@ -114,6 +115,7 @@ impl<'a> DrawEncoder<'a> {
         egui_ctx: &egui::Context,
         frame_timings: &VecDeque<Vec<GpuTimerScopeResult>>,
     ) {
+        puffin::profile_function!();
         let mut unique_ids = Vec::new();
         let mut unique_lookup = HashSet::new();
         frame_timings.iter().for_each(|val| {
@@ -160,8 +162,10 @@ impl<'a> DrawEncoder<'a> {
     pub fn draw_ui(
         &mut self,
         draw_gpu_timings: bool,
+        draw_cpu_timings: bool,
         ui_builder: impl FnOnce(&egui::Context),
     ) -> Result<()> {
+        puffin::profile_function!();
         let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
         let ctx = &mut encoder.gpu_context;
         let command_encoder = encoder
@@ -184,6 +188,9 @@ impl<'a> DrawEncoder<'a> {
                         .run(ctx.state.take_egui_input(ctx.window.as_ref()), |egui_ctx| {
                             if draw_gpu_timings {
                                 Self::draw_gpu_timings(egui_ctx, &ctx.frame_timings)
+                            }
+                            if draw_cpu_timings {
+                                puffin_egui::profiler_window(egui_ctx);
                             }
                             ui_builder(egui_ctx)
                         });
@@ -229,6 +236,12 @@ impl<'a> DrawEncoder<'a> {
 }
 
 impl Encoder<'_> {
+    pub fn width(&self) -> u32 {
+        self.gpu_context.config.width
+    }
+    pub fn height(&self) -> u32 {
+        self.gpu_context.config.height
+    }
     // todo: change resources to accept either texture or buffer handle
     pub fn dispatch_pipeline<PushConstants: Pod>(
         &mut self,
@@ -237,6 +250,7 @@ impl Encoder<'_> {
         push_constants: &PushConstants,
         resources: &[&ResourceHandle],
     ) -> Result<()> {
+        puffin::profile_function!();
         let encoder = self
             .command_encoder
             .as_mut()
@@ -310,6 +324,7 @@ impl Encoder<'_> {
         buffer: &ResourceHandle,
         data: K,
     ) -> Result<()> {
+        puffin::profile_function!();
         let data = data.as_ref();
         info!(
             "writing buffer data to {:?}, from buffer with {} elements",
@@ -353,6 +368,7 @@ impl Encoder<'_> {
         texture: &ResourceHandle,
         data: K,
     ) -> Result<()> {
+        puffin::profile_function!();
         let data = data.as_ref();
         info!(
             "writing texture data to {:?}, the data source has size {}",
@@ -426,6 +442,7 @@ impl Encoder<'_> {
 
 impl<'a> Drop for Encoder<'a> {
     fn drop(&mut self) {
+        puffin::profile_function!();
         self.command_encoder.as_mut().unwrap().pop_debug_group();
         self.gpu_context
             .profiler
@@ -446,8 +463,13 @@ impl<'a> Drop for Encoder<'a> {
 
 impl<'a> Drop for DrawEncoder<'a> {
     fn drop(&mut self) {
+        puffin::profile_function!();
         drop(self.encoder.take());
         let surface = self.surface_texture.take().unwrap();
         surface.present();
     }
+}
+
+pub fn div_ceil(val: u32, div: u32) -> u32 {
+    (val / div) + (val % div)
 }

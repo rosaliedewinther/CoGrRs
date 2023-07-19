@@ -21,6 +21,9 @@ anyhow = "1.0"
 hassle-rs = "0.10"
 itertools = "0.11"
 
+puffin = "0.16"
+puffin_egui = "0.22"
+
 egui = "0.22"
 egui-wgpu = "0.22"
 egui-winit = "0.22"

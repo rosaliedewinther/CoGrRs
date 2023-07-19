@@ -160,6 +160,7 @@ impl CoGr {
         })
     }
     pub fn get_encoder_for_draw(&mut self) -> Result<DrawEncoder> {
+        puffin::profile_function!();
         let surface_texture = self.surface.get_current_texture()?;
         let texture_view_config = wgpu::TextureViewDescriptor {
             format: Some(self.config.format),
@@ -175,6 +176,7 @@ impl CoGr {
         })
     }
     pub fn get_encoder(&mut self) -> Result<Encoder> {
+        puffin::profile_function!();
         self.resource_pool
             .prepare_resources(&self.device, &self.config);
         let mut encoder = self
