@@ -1,3 +1,6 @@
+use egui::epaint::Shadow;
+use egui::Style;
+use egui::Visuals;
 pub use encoder::*;
 pub use pipeline::*;
 pub use resources::*;
@@ -126,6 +129,13 @@ impl CoGr {
 
         let renderer = egui_wgpu::renderer::Renderer::new(&device, config.format, None, 1);
         let context = egui::Context::default();
+        context.set_style(Style {
+            visuals: Visuals {
+                window_shadow: Shadow::NONE,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
         let state = egui_winit::State::new(event_loop);
 
         let profiler = GpuProfiler::new(4, queue.get_timestamp_period(), device.features());
