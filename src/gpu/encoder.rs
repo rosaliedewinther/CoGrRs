@@ -1,12 +1,10 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::mem::size_of_val;
 use std::ops::{Deref, DerefMut};
 
 use anyhow::{Context, Result};
-use egui::plot::{Bar, BarChart, Corner, Legend, Plot};
-use itertools::Itertools;
+use egui::Ui;
 
 use crate::gpu::Pipeline;
 use bytemuck::Pod;
@@ -111,60 +109,36 @@ impl<'a> DrawEncoder<'a> {
         Ok(())
     }
 
-    fn draw_gpu_timings(
-        egui_ctx: &egui::Context,
-        frame_timings: &VecDeque<Vec<GpuTimerScopeResult>>,
-    ) {
+    fn draw_gpu_timings(egui_ctx: &egui::Context, frame_timings: &Vec<GpuTimerScopeResult>) {
         puffin::profile_function!();
-        let mut unique_ids = Vec::new();
-        let mut unique_lookup = HashSet::new();
-        frame_timings.iter().for_each(|val| {
-            val.iter().for_each(|inner_val| {
-                if !unique_lookup.contains(&inner_val.label) {
-                    unique_lookup.insert(inner_val.label.clone());
-                    unique_ids.push(inner_val.label.clone());
+
+        egui::Window::new("gpu_timings").show(egui_ctx, |ui: &mut Ui| {
+            egui::Grid::new("gpu_timings_grid").show(ui, |ui| {
+                let mut time_sum = 0.0;
+                for timing in frame_timings {
+                    assert!(
+                        timing.nested_scopes.is_empty(),
+                        "we dont ever wanna capture nested scopes"
+                    );
+                    let time = timing.time.end - timing.time.start;
+                    ui.label(format!("{}:", timing.label,));
+                    ui.label(format!("{:.4}ms", time * 1000.0));
+                    ui.end_row();
+                    time_sum += time;
                 }
-            })
-        });
-
-        let mut charts: Vec<BarChart> = Vec::new();
-        let bar_scaling = 1.0;
-
-        for id in unique_ids {
-            let mut bars = Vec::new();
-            for (i, timing) in frame_timings.iter().enumerate() {
-                let time_sum = timing
-                    .iter()
-                    .positions(|val| val.label == id)
-                    .map(|index| timing[index].time.end - timing[index].time.start)
-                    .sum();
-
-                bars.push(Bar::new(i as f64 * bar_scaling + 0.5, time_sum))
-            }
-            charts.push(
-                BarChart::new(bars)
-                    .name(id)
-                    .width(1f64)
-                    .stack_on(charts.iter().collect::<Vec<&BarChart>>().as_slice()),
-            );
-        }
-        egui::Window::new("gpu_timings").show(egui_ctx, |ui| {
-            Plot::new("timings")
-                .legend(Legend::default().position(Corner::LeftBottom))
-                .show(ui, |plot_ui| {
-                    charts
-                        .into_iter()
-                        .for_each(|chart| plot_ui.bar_chart(chart));
-                });
+                ui.separator();
+                ui.separator();
+                ui.end_row();
+                ui.label("total gpu time:");
+                ui.label(format!("{:.4}ms", time_sum * 1000.0));
+                ui.end_row();
+                ui.label("fps:");
+                ui.label(format!("{:.4}fps", 1.0 / time_sum));
+            });
         });
     }
 
-    pub fn draw_ui(
-        &mut self,
-        draw_gpu_timings: bool,
-        draw_cpu_timings: bool,
-        ui_builder: impl FnOnce(&egui::Context),
-    ) -> Result<()> {
+    pub fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context)) -> Result<()> {
         puffin::profile_function!();
         let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
         let ctx = &mut encoder.gpu_context;
@@ -186,13 +160,35 @@ impl<'a> DrawEncoder<'a> {
                 let full_output =
                     ctx.context
                         .run(ctx.state.take_egui_input(ctx.window.as_ref()), |egui_ctx| {
-                            if draw_gpu_timings {
-                                Self::draw_gpu_timings(egui_ctx, &ctx.frame_timings)
+                            egui::TopBottomPanel::top("top_bar").show(egui_ctx, |ui| {
+                                ui.horizontal_wrapped(|ui| {
+                                    if ui
+                                        .selectable_label(ctx.draw_cpu_profiler, "cpu_profiler")
+                                        .clicked()
+                                    {
+                                        ctx.draw_cpu_profiler ^= true;
+                                    }
+                                    if ui
+                                        .selectable_label(ctx.draw_gpu_profiler, "gpu_profiler")
+                                        .clicked()
+                                    {
+                                        ctx.draw_gpu_profiler ^= true;
+                                    }
+                                    if ui.selectable_label(ctx.draw_user_ui, "user_ui").clicked() {
+                                        ctx.draw_user_ui ^= true;
+                                    }
+                                });
+                            });
+
+                            if ctx.draw_gpu_profiler {
+                                Self::draw_gpu_timings(egui_ctx, &ctx.frame_timings);
                             }
-                            if draw_cpu_timings {
+                            if ctx.draw_cpu_profiler {
                                 puffin_egui::profiler_window(egui_ctx);
                             }
-                            ui_builder(egui_ctx)
+                            if ctx.draw_user_ui {
+                                ui_builder(egui_ctx);
+                            }
                         });
 
                 let paint_jobs = ctx.context.tessellate(full_output.shapes);
@@ -453,10 +449,7 @@ impl<'a> Drop for Encoder<'a> {
 
         self.gpu_context.profiler.end_frame().unwrap();
         if let Some(timings) = self.gpu_context.profiler.process_finished_frame() {
-            self.gpu_context.frame_timings.push_back(timings);
-            if self.gpu_context.frame_timings.len() as u32 > self.gpu_context.max_frame_history {
-                self.gpu_context.frame_timings.pop_front();
-            }
+            self.gpu_context.frame_timings = timings;
         }
     }
 }

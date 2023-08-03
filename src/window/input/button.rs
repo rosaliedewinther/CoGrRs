@@ -6,3 +6,14 @@ pub enum ButtonState {
     Released,
     Down,
 }
+
+impl From<ButtonState> for bool {
+    fn from(value: ButtonState) -> Self {
+        match value {
+            ButtonState::Up => false,
+            ButtonState::Pressed => true,
+            ButtonState::Released => false,
+            ButtonState::Down => true,
+        }
+    }
+}

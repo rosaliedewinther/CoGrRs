@@ -12,7 +12,6 @@ pub use winit;
 use self::to_screen_pipeline::ToScreenPipeline;
 use anyhow::Result;
 use egui_winit::State;
-use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
 use wgpu::Backends;
@@ -70,8 +69,7 @@ pub struct CoGr {
     window: Arc<Window>,
 
     profiler: GpuProfiler,
-    frame_timings: VecDeque<Vec<GpuTimerScopeResult>>,
-    max_frame_history: u32,
+    frame_timings: Vec<GpuTimerScopeResult>,
 
     resource_pool: ResourcePool,
     last_to_screen_texture_handle: Option<ResourceHandle>,
@@ -81,6 +79,9 @@ pub struct CoGr {
     context: egui::Context,
     renderer: egui_wgpu::Renderer,
     state: State,
+    draw_cpu_profiler: bool,
+    draw_gpu_profiler: bool,
+    draw_user_ui: bool,
 }
 
 impl CoGr {
@@ -149,14 +150,16 @@ impl CoGr {
             resource_pool: ResourcePool::default(),
 
             profiler,
-            frame_timings: VecDeque::new(),
-            max_frame_history: 100,
+            frame_timings: Vec::new(),
 
             renderer,
             context,
             state,
             last_to_screen_texture_handle: None,
             last_to_screen_pipeline: None,
+            draw_cpu_profiler: false,
+            draw_gpu_profiler: false,
+            draw_user_ui: false,
         })
     }
     pub fn get_encoder_for_draw(&mut self) -> Result<DrawEncoder> {

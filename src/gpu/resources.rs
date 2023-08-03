@@ -1,8 +1,8 @@
-use parking_lot::Mutex;
 use std::{
+    cell::RefCell,
     hash::{Hash, Hasher},
     ops::Sub,
-    sync::Arc,
+    rc::Rc,
 };
 
 use anyhow::{anyhow, Result};
@@ -124,41 +124,41 @@ impl Buffer {
 
 #[derive(Debug, Clone)]
 pub enum ResourceHandle {
-    Texture(Arc<Mutex<usize>>),
-    Buffer(Arc<Mutex<usize>>),
+    Texture(Rc<RefCell<usize>>),
+    Buffer(Rc<RefCell<usize>>),
 }
 
 impl ResourceHandle {
     pub fn get_index(&self) -> usize {
         match self {
-            ResourceHandle::Texture(t) => *t.lock(),
-            ResourceHandle::Buffer(b) => *b.lock(),
+            ResourceHandle::Texture(t) => *t.borrow(),
+            ResourceHandle::Buffer(b) => *b.borrow(),
         }
     }
     pub fn new_t(index: usize) -> Self {
-        ResourceHandle::Texture(Arc::new(Mutex::new(index)))
+        ResourceHandle::Texture(Rc::new(RefCell::new(index)))
     }
     pub fn new_b(index: usize) -> Self {
-        ResourceHandle::Buffer(Arc::new(Mutex::new(index)))
+        ResourceHandle::Buffer(Rc::new(RefCell::new(index)))
     }
     pub fn reference_count(&self) -> usize {
         match self {
-            ResourceHandle::Texture(t) => Arc::strong_count(t) + Arc::weak_count(t),
-            ResourceHandle::Buffer(b) => Arc::strong_count(b) + Arc::weak_count(b),
+            ResourceHandle::Texture(t) => Rc::strong_count(t) + Rc::weak_count(t),
+            ResourceHandle::Buffer(b) => Rc::strong_count(b) + Rc::weak_count(b),
         }
     }
     pub fn decrement(&mut self) {
         match self {
-            ResourceHandle::Texture(t) => t.lock().sub(1),
-            ResourceHandle::Buffer(b) => b.lock().sub(1),
+            ResourceHandle::Texture(t) => t.borrow_mut().sub(1),
+            ResourceHandle::Buffer(b) => b.borrow_mut().sub(1),
         };
     }
     pub fn ptr_eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (ResourceHandle::Texture(h1), ResourceHandle::Texture(h2)) => Arc::ptr_eq(h1, h2),
-            (ResourceHandle::Texture(h1), ResourceHandle::Buffer(h2)) => Arc::ptr_eq(h1, h2),
-            (ResourceHandle::Buffer(h1), ResourceHandle::Texture(h2)) => Arc::ptr_eq(h1, h2),
-            (ResourceHandle::Buffer(h1), ResourceHandle::Buffer(h2)) => Arc::ptr_eq(h1, h2),
+            (ResourceHandle::Texture(h1), ResourceHandle::Texture(h2)) => Rc::ptr_eq(h1, h2),
+            (ResourceHandle::Texture(h1), ResourceHandle::Buffer(h2)) => Rc::ptr_eq(h1, h2),
+            (ResourceHandle::Buffer(h1), ResourceHandle::Texture(h2)) => Rc::ptr_eq(h1, h2),
+            (ResourceHandle::Buffer(h1), ResourceHandle::Buffer(h2)) => Rc::ptr_eq(h1, h2),
         }
     }
 }
@@ -166,8 +166,8 @@ impl ResourceHandle {
 impl Hash for ResourceHandle {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            ResourceHandle::Texture(t) => t.data_ptr().hash(state),
-            ResourceHandle::Buffer(b) => b.data_ptr().hash(state),
+            ResourceHandle::Texture(t) => t.as_ptr().hash(state),
+            ResourceHandle::Buffer(b) => b.as_ptr().hash(state),
         }
     }
 }
