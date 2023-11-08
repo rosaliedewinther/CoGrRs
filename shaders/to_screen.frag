@@ -3,7 +3,7 @@
 layout(location=0) in vec2 v_tex_coords;
 layout(location=0) out vec4 f_color;
 
-layout(rgba8, binding = 0) readonly uniform image2D to_draw;
+layout(rgba16, binding = 0) readonly uniform image2D to_draw;
 
 void main() {
     vec2 size = imageSize(to_draw);

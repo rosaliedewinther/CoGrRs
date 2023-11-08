@@ -14,11 +14,10 @@ use anyhow::Result;
 use egui_winit::State;
 use std::fmt::Debug;
 use std::sync::Arc;
-use wgpu::Backends;
 use wgpu::Buffer;
 use wgpu::InstanceDescriptor;
 use wgpu::TextureFormat;
-use wgpu::TextureFormat::Bgra8Unorm;
+use wgpu::TextureFormat::Bgra8UnormSrgb;
 use wgpu::{Texture, TextureView};
 use winit::event::WindowEvent;
 use winit::event_loop::EventLoop;
@@ -86,10 +85,7 @@ pub struct CoGr {
 
 impl CoGr {
     pub fn new(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
-        let instance = wgpu::Instance::new(InstanceDescriptor {
-            backends: Backends::VULKAN,
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(InstanceDescriptor::default());
         let surface = unsafe { instance.create_surface(window.as_ref())? };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -117,14 +113,17 @@ impl CoGr {
             None, // Trace path
         ))?;
 
+        println!("{:?}", surface.get_capabilities(&adapter));
+        
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: Bgra8Unorm,
+            format: Bgra8UnormSrgb,
             width: window.inner_size().width,
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::Immediate,
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
-            view_formats: vec![Bgra8Unorm],
+            view_formats: vec![Bgra8UnormSrgb],
         };
         surface.configure(&device, &config);
 
@@ -139,7 +138,7 @@ impl CoGr {
         });
         let state = egui_winit::State::new(event_loop);
 
-        let profiler = GpuProfiler::new(4, queue.get_timestamp_period(), device.features());
+        let profiler = GpuProfiler::new(&adapter, &device, &queue,4);
 
         Ok(Self {
             surface,

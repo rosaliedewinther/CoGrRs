@@ -3,6 +3,7 @@ use bytemuck::{Pod, Zeroable};
 use cogrrs::TextureRes::FullRes;
 use cogrrs::{div_ceil, main_loop_run, Input};
 use cogrrs::{CoGr, Game, Pipeline, ResourceHandle};
+use wgpu::TextureFormat;
 
 pub struct HelloSine {
     pub to_draw_texture: ResourceHandle,
@@ -20,7 +21,7 @@ struct GpuData {
 
 impl Game for HelloSine {
     fn on_init(gpu: &mut CoGr) -> Result<Self> {
-        let to_draw_texture = gpu.texture("to_draw", FullRes, gpu.config.format);
+        let to_draw_texture = gpu.texture("to_draw", FullRes, TextureFormat::Rgba16Float);
         let draw_pipeline = gpu.pipeline("examples/hello_sine/sine.hlsl")?;
         Ok(HelloSine {
             to_draw_texture,

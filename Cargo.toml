@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 winit = { version = "0.28", default-features = false }
-wgpu = { version = "0.16", default-features = false, features = ["spirv"] }
-wgpu-profiler = "0.12.1"
+wgpu = { version = "0.17", default-features = false, features = ["spirv"] }
+wgpu-profiler = "0.14"
 pollster = { version = "0.3", default-features = false }
 bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
 inline-spirv = { version = "0.1", default-features = false, features = [
@@ -18,15 +18,15 @@ log = { version = "0.4", default-features = false }
 spirv-reflect = "0.2"
 parking_lot = "0.12"
 anyhow = "1.0"
-hassle-rs = "0.10"
+hassle-rs = "0.11"
 itertools = "0.11"
 
-puffin = "0.16"
-puffin_egui = "0.22"
+puffin = "0.17"
+puffin_egui = "0.23"
 
-egui = "0.22"
-egui-wgpu = "0.22"
-egui-winit = "0.22"
+egui = "0.23"
+egui-wgpu = "0.23"
+egui-winit = "0.23"
 
 [dev-dependencies]
 bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
@@ -36,3 +36,6 @@ rand = "0.8"
 
 [profile.release]
 debug = true
+
+[patch.crates-io]
+wgpu = { path = "../wgpu/wgpu" }
