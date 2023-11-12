@@ -1,9 +1,8 @@
-use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
-use cogrrs::TextureRes::FullRes;
-use cogrrs::{div_ceil, main_loop_run, Input};
-use cogrrs::{CoGr, Game, Pipeline, ResourceHandle};
-use wgpu::TextureFormat;
+use cogrrs::{
+    anyhow::Result, div_ceil, main_loop_run, tracing::info, CoGr, Game, Input, Pipeline,
+    ResourceHandle, TextureFormat, TextureRes,
+};
 
 pub struct HelloSine {
     pub to_draw_texture: ResourceHandle,
@@ -21,7 +20,8 @@ struct GpuData {
 
 impl Game for HelloSine {
     fn on_init(gpu: &mut CoGr) -> Result<Self> {
-        let to_draw_texture = gpu.texture("to_draw", FullRes, TextureFormat::Rgba16Float);
+        let to_draw_texture =
+            gpu.texture("to_draw", TextureRes::FullRes, TextureFormat::Rgba32Float);
         let draw_pipeline = gpu.pipeline("examples/hello_sine/sine.hlsl")?;
         Ok(HelloSine {
             to_draw_texture,
@@ -35,6 +35,8 @@ impl Game for HelloSine {
         let height = gpu.config.height;
         let mut encoder = gpu.get_encoder_for_draw()?;
 
+        info!("hello");
+
         self.time += dt;
         let gpu_data = GpuData {
             time: self.time,
@@ -47,7 +49,7 @@ impl Game for HelloSine {
             &gpu_data,
             &[&self.to_draw_texture],
         )?;
-        encoder.to_screen(&self.to_draw_texture)?;
+        encoder.to_screen(&self.to_draw_texture, TextureFormat::Rgba32Float)?;
 
         Ok(())
     }

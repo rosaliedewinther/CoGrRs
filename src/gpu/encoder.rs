@@ -6,27 +6,22 @@ use std::ops::{Deref, DerefMut};
 use anyhow::{Context, Result};
 use egui::Ui;
 
+use crate::gpu::resources::init_texture_with_data;
 use crate::gpu::Pipeline;
-use bytemuck::Pod;
+use bytemuck::{Pod, AnyBitPattern, NoUninit};
 use egui_wgpu::renderer::ScreenDescriptor;
 use tracing::info;
 use wgpu::util::DeviceExt;
 use wgpu::IndexFormat::Uint16;
 use wgpu::{
-    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView,
+    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView, TextureFormat,
 };
 use wgpu_profiler::{wgpu_profiler, GpuTimerScopeResult};
 
 use crate::gpu::ResourceHandle;
-use crate::init_texture_with_data;
 use crate::CoGr;
 
 use super::to_screen_pipeline::ToScreenPipeline;
-
-pub enum EncoderType {
-    Draw(Option<SurfaceTexture>, TextureView),
-    NonDraw,
-}
 
 pub struct Encoder<'a> {
     pub(crate) command_encoder: Option<CommandEncoder>,
@@ -54,7 +49,7 @@ impl<'a> DerefMut for DrawEncoder<'a> {
 }
 
 impl<'a> DrawEncoder<'a> {
-    pub fn to_screen(&mut self, to_screen_texture: &ResourceHandle) -> Result<()> {
+    pub fn to_screen(&mut self, to_screen_texture: &ResourceHandle, texture_format: TextureFormat) -> Result<()> {
         puffin::profile_function!();
         let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
         let ctx = &mut encoder.gpu_context;
@@ -94,7 +89,7 @@ impl<'a> DrawEncoder<'a> {
                     ctx.last_to_screen_pipeline = Some(ToScreenPipeline::new(
                         &ctx.device,
                         texture_view,
-                        ctx.config.format,
+                        texture_format,
                     ));
                 }
 
@@ -315,7 +310,7 @@ impl Encoder<'_> {
         Ok(())
     }
 
-    pub fn set_buffer_data<T: Pod, K: AsRef<[T]>>(
+    pub fn set_buffer_data<T: AnyBitPattern + NoUninit, K: AsRef<[T]>>(
         &mut self,
         buffer: &ResourceHandle,
         data: K,

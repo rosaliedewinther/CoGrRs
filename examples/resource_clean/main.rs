@@ -1,5 +1,4 @@
-use anyhow::Result;
-use cogrrs::{main_loop_run, CoGr, Game, Input, ResourceHandle};
+use cogrrs::{anyhow::Result, main_loop_run, CoGr, Game, Input, ResourceHandle};
 
 pub struct HelloWorld {
     _buffer_handle: ResourceHandle,

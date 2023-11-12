@@ -15,26 +15,21 @@ inline-spirv = { version = "0.1", default-features = false, features = [
     "hlsl",
 ] }
 #log = { version = "0.4", default-features = false }
-tracing = "0.1"
-tracing-subscriber = "0.1"
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = "0.3"
 spirv-reflect = "0.2"
 parking_lot = "0.12"
 anyhow = "1.0"
 hassle-rs = "0.11"
 itertools = "0.11"
 
+glam = { version = "0.24", features = ["bytemuck"] }
 puffin = "0.17"
 puffin_egui = "0.23"
 
 egui = "0.23"
 egui-wgpu = "0.23"
 egui-winit = "0.23"
-
-[dev-dependencies]
-bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
-rayon = { version = "1.6" }
-anyhow = "1.0"
-rand = "0.8"
 
 [profile.release]
 debug = true

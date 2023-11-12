@@ -1,14 +1,10 @@
 use egui::epaint::Shadow;
 use egui::Style;
 use egui::Visuals;
-pub use encoder::*;
-pub use pipeline::*;
-pub use resources::*;
-pub use tracing::info;
-pub use wgpu;
+use tracing::info;
+use wgpu::Features;
 use wgpu_profiler::GpuProfiler;
 use wgpu_profiler::GpuTimerScopeResult;
-pub use winit;
 
 use self::to_screen_pipeline::ToScreenPipeline;
 use anyhow::Result;
@@ -29,6 +25,12 @@ mod pipeline;
 mod resources;
 mod shader;
 mod to_screen_pipeline;
+
+pub use encoder::*;
+pub use to_screen_pipeline::*;
+pub use pipeline::*;
+pub use shader::*;
+pub use resources::*;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -105,7 +107,7 @@ impl CoGr {
         };
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
-                features: Default::default(),
+                features: Features::SPIRV_SHADER_PASSTHROUGH | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES | Features::PUSH_CONSTANTS,
                 limits,
                 label: None,
             },

@@ -1,17 +1,10 @@
-use bytemuck::{Pod, Zeroable};
-use core::panic;
 use std::fmt::Debug;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
-    ops::{Add, Div, Mul, Sub},
 };
+use cogrrs::{bytemuck::{Pod, Zeroable}, glam::Vec3, glam::vec3};
 
-#[repr(C, align(16))]
-#[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct Point {
-    pub pos: [f32; 4],
-}
 #[repr(C, align(32))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct BVHNode {
@@ -25,7 +18,7 @@ pub struct BVHNode {
     pub count: i32,
 }
 #[repr(C, align(32))]
-#[derive(Pod, Zeroable, Copy, Clone)]
+#[derive(Pod , Zeroable, Copy, Clone)]
 pub struct Aabb {
     pub minx: f32,
     pub miny: f32,
@@ -36,23 +29,22 @@ pub struct Aabb {
     _padding1: f32,
     _padding2: f32,
 }
-#[repr(C, align(64))]
-#[derive(Pod, Zeroable, Copy, Clone)]
+#[repr(C)]
+#[derive(Pod , Zeroable, Copy, Clone)]
 pub struct Ray {
-    pub o: Point,
-    pub d: Point,
-    pub d_r: Point,
+    pub o: Vec3,
     pub t: f32,
+    pub d: Vec3,
     pub prim: u32,
+    pub d_r: Vec3,
     pub _padding1: u32,
-    pub _padding2: u32,
 }
 
 pub struct Bvh {
-    pub triangles: Vec<[Point; 4]>,
+    pub triangles: Vec<[Vec3; 4]>,
     pub indices: Vec<u32>,
     pub bvh_nodes: Vec<BVHNode>,
-    pub centroids: Vec<Point>,
+    pub centroids: Vec<Vec3>,
 }
 
 impl Debug for Aabb {
@@ -62,174 +54,6 @@ impl Debug for Aabb {
             self.maxx, self.maxy, self.maxz, self.minx, self.miny, self.minz
         ))
     }
-}
-
-impl Point {
-    pub fn new(x: f32, y: f32, z: f32) -> Point {
-        Point {
-            pos: [x, y, z, 0f32],
-        }
-    }
-}
-
-impl Add for Point {
-    type Output = Point;
-
-    fn add(self, other: Point) -> Point {
-        Point {
-            pos: [
-                self.pos[0] + other.pos[0],
-                self.pos[1] + other.pos[1],
-                self.pos[2] + other.pos[2],
-                0f32,
-            ],
-        }
-    }
-}
-
-impl Add<f32> for Point {
-    type Output = Point;
-
-    fn add(self, other: f32) -> Point {
-        Point {
-            pos: [
-                self.pos[0] + other,
-                self.pos[1] + other,
-                self.pos[2] + other,
-                0f32,
-            ],
-        }
-    }
-}
-
-impl Sub for Point {
-    type Output = Point;
-
-    fn sub(self, other: Point) -> Point {
-        Point {
-            pos: [
-                self.pos[0] - other.pos[0],
-                self.pos[1] - other.pos[1],
-                self.pos[2] - other.pos[2],
-                0f32,
-            ],
-        }
-    }
-}
-
-impl Sub<f32> for Point {
-    type Output = Point;
-
-    fn sub(self, other: f32) -> Point {
-        Point {
-            pos: [
-                self.pos[0] - other,
-                self.pos[1] - other,
-                self.pos[2] - other,
-                0f32,
-            ],
-        }
-    }
-}
-
-impl Mul<f32> for Point {
-    type Output = Point;
-
-    fn mul(self, scalar: f32) -> Point {
-        Point {
-            pos: [
-                self.pos[0] * scalar,
-                self.pos[1] * scalar,
-                self.pos[2] * scalar,
-                0f32,
-            ],
-        }
-    }
-}
-
-impl Mul<Point> for Point {
-    type Output = Point;
-
-    fn mul(self, rhs: Point) -> Point {
-        Point {
-            pos: [
-                self.pos[0] * rhs.pos[0],
-                self.pos[1] * rhs.pos[1],
-                self.pos[2] * rhs.pos[2],
-                0f32,
-            ],
-        }
-    }
-}
-
-impl Div<f32> for Point {
-    type Output = Point;
-
-    fn div(self, scalar: f32) -> Point {
-        Point {
-            pos: [
-                self.pos[0] / scalar,
-                self.pos[1] / scalar,
-                self.pos[2] / scalar,
-                0f32,
-            ],
-        }
-    }
-}
-impl Div<Point> for f32 {
-    type Output = Point;
-
-    fn div(self, point: Point) -> Point {
-        Point {
-            pos: [
-                self / point.pos[0],
-                self / point.pos[1],
-                self / point.pos[2],
-                0f32,
-            ],
-        }
-    }
-}
-impl Point {
-    pub fn min(self, rhs: Point) -> Point {
-        Point {
-            pos: [
-                f32::min(self.pos[0], rhs.pos[0]),
-                f32::min(self.pos[1], rhs.pos[1]),
-                f32::min(self.pos[2], rhs.pos[2]),
-                0f32,
-            ],
-        }
-    }
-    pub fn max(self, rhs: Point) -> Point {
-        Point {
-            pos: [
-                f32::max(self.pos[0], rhs.pos[0]),
-                f32::max(self.pos[1], rhs.pos[1]),
-                f32::max(self.pos[2], rhs.pos[2]),
-                0f32,
-            ],
-        }
-    }
-}
-
-pub fn cross(a: Point, b: Point) -> Point {
-    Point {
-        pos: [
-            a.pos[1] * b.pos[2] - a.pos[2] * b.pos[1],
-            a.pos[2] * b.pos[0] - a.pos[0] * b.pos[2],
-            a.pos[0] * b.pos[1] - a.pos[1] * b.pos[0],
-            0f32,
-        ],
-    }
-}
-
-pub fn length(point: Point) -> f32 {
-    (point.pos[0] * point.pos[0] + point.pos[1] * point.pos[1] + point.pos[2] * point.pos[2]).sqrt()
-}
-
-pub fn normalize(point: Point) -> Point {
-    point / length(point)
 }
 
 impl Debug for BVHNode {
@@ -262,9 +86,7 @@ impl Bvh {
                 let p1 = splits[1].parse::<f32>().unwrap();
                 let p2 = splits[2].parse::<f32>().unwrap();
                 let p3 = splits[3].parse::<f32>().unwrap();
-                vertices.push(Point {
-                    pos: [p1, p2, p3, 0f32],
-                });
+                vertices.push(vec3(p1, p2, p3));
             }
             if splits[0] == "f" {
                 match splits.len() {
@@ -295,14 +117,14 @@ impl Bvh {
             .map(|(i, _)| i as u32)
             .collect();
 
-        let triangles: Vec<[Point; 4]> = triangles
+        let triangles: Vec<[Vec3; 4]> = triangles
             .iter()
             .map(|tri| {
                 [
                     vertices[tri[0] as usize],
                     vertices[tri[1] as usize],
                     vertices[tri[2] as usize],
-                    Point::zeroed(),
+                    Vec3::zeroed(),
                 ]
             })
             .collect();
@@ -434,7 +256,7 @@ impl Bvh {
         let mut i = start as i32;
 
         while i < end {
-            if self.centroids[self.indices[i as usize] as usize].pos[axis] < pos {
+            if self.centroids[self.indices[i as usize] as usize][axis] < pos {
                 i += 1;
             } else {
                 self.indices.swap(i as usize, end as usize);
@@ -447,33 +269,31 @@ impl Bvh {
 
     // return min and max point
     fn calculate_bounds(&self, first: u32, amount: u32, centroids: bool) -> Aabb {
-        let mut max_point = Point {
-            pos: [-100000000f32, -100000000f32, -100000000f32, 0f32],
-        };
-        let mut min_point = Point {
-            pos: [100000000f32, 100000000f32, 100000000f32, 0f32],
-        };
+        let mut max_point = vec3(
+            -100000000f32, -100000000f32, -100000000f32);
+        let mut min_point =vec3(
+            100000000f32, 100000000f32, 100000000f32);
         for i in first..(first + amount) {
             let i = i as usize;
             if centroids {
                 let vertex = self.centroids[self.indices[i] as usize];
-                max_point = Point::max(max_point, vertex);
-                min_point = Point::min(min_point, vertex);
+                max_point = max_point.max(vertex);
+                min_point = min_point.min(vertex);
             } else {
                 for j in 0..3_usize {
                     let vertex = self.triangles[self.indices[i] as usize][j];
-                    max_point = Point::max(max_point, vertex);
-                    min_point = Point::min(min_point, vertex);
+                    max_point = max_point.max(vertex);
+                    min_point = min_point.min(vertex);
                 }
             }
         }
         Aabb {
-            maxx: max_point.pos[0],
-            maxy: max_point.pos[1],
-            maxz: max_point.pos[2],
-            minx: min_point.pos[0],
-            miny: min_point.pos[1],
-            minz: min_point.pos[2],
+            maxx: max_point.x,
+            maxy: max_point.y,
+            maxz: max_point.z,
+            minx: min_point.x,
+            miny: min_point.y,
+            minz: min_point.z,
             _padding1: 0f32,
             _padding2: 0f32,
         }

@@ -1,11 +1,8 @@
 use std::{f32::consts::PI, mem::size_of};
 
-use crate::bvh::{cross, BVHNode};
-use anyhow::Result;
-use bvh::{normalize, Bvh, Point};
-use bytemuck::{Pod, Zeroable};
+use bvh::{Bvh, BVHNode};
 use cogrrs::{
-    div_ceil, egui, main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureRes,
+    anyhow::Result, div_ceil, egui, main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureRes, glam::Vec3, glam::vec3, bytemuck::Zeroable, bytemuck::Pod, TextureFormat
 };
 
 mod bvh;
@@ -25,10 +22,10 @@ struct RayTracer {
 #[repr(C)]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct CameraData {
-    pub dir: Point,
-    pub pos: Point,
-    pub side: Point,
-    pub up: Point,
+    pub dir: Vec3,
+    pub pos: Vec3,
+    pub side: Vec3,
+    pub up: Vec3,
     pub width: f32,
     pub half_width: f32,
     pub height: f32,
@@ -45,7 +42,7 @@ impl Game for RayTracer {
         bvh.build_bvh();
 
         let to_draw = gpu.texture("to_draw_texture", TextureRes::FullRes, gpu.config.format);
-        let triangles = gpu.buffer("triangles", bvh.triangles.len(), size_of::<[Point; 4]>());
+        let triangles = gpu.buffer("triangles", bvh.triangles.len(), size_of::<[Vec3; 4]>());
         let bvh_nodes = gpu.buffer("bvh_nodes", bvh.bvh_nodes.len(), size_of::<BVHNode>());
 
         {
@@ -82,14 +79,14 @@ impl Game for RayTracer {
         }
         self.distance += input.mouse_state.scroll_delta;
 
-        let ray_origin = Point::new(
+        let ray_origin = vec3(
             self.time.sin() * self.distance,
             0f32,
             self.time.cos() * self.distance,
         );
-        let ray_direction = normalize(Point::new(-ray_origin.pos[0], 0f32, -ray_origin.pos[2]));
-        let ray_side = cross(ray_direction, normalize(Point::new(0f32, 1f32, 0f32)));
-        let ray_up = cross(ray_direction, ray_side);
+        let ray_direction = vec3(-ray_origin.x, 0f32, -ray_origin.z).normalize();
+        let ray_side = ray_direction.cross(vec3(0f32, 1f32, 0f32).normalize());
+        let ray_up = ray_direction.cross(ray_side);
 
         let camera_data = CameraData {
             dir: ray_direction,
@@ -114,7 +111,7 @@ impl Game for RayTracer {
             &[&self.to_draw, &self.triangles, &self.bvh_nodes],
         )?;
 
-        encoder.to_screen(&self.to_draw)?;
+        encoder.to_screen(&self.to_draw, TextureFormat::Rgba32Float)?;
         encoder.draw_ui(|ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
                 ui.label(format!("ms: {}", self.saved_timing * 1000f32));
