@@ -14,7 +14,9 @@ bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
 inline-spirv = { version = "0.1", default-features = false, features = [
     "hlsl",
 ] }
-log = { version = "0.4", default-features = false }
+#log = { version = "0.4", default-features = false }
+tracing = "0.1"
+tracing-subscriber = "0.1"
 spirv-reflect = "0.2"
 parking_lot = "0.12"
 anyhow = "1.0"

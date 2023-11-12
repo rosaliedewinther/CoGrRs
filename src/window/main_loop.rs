@@ -3,6 +3,9 @@ use crate::Input;
 use anyhow::Result;
 use std::sync::Arc;
 use std::time::Instant;
+use tracing::info;
+use tracing::Level;
+use tracing_subscriber::FmtSubscriber;
 use winit::dpi::PhysicalPosition;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -18,24 +21,39 @@ pub fn main_loop_run<T>(ticks_per_s: f32) -> Result<()>
 where
     T: 'static + Game,
 {
+    let subscriber = FmtSubscriber::builder()
+        // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
+        // will be written to stdout.
+        .with_max_level(Level::TRACE)
+        // completes the builder.
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
     puffin::set_scopes_on(true);
     let event_loop = EventLoop::new();
+    info!("created event loop");
     let monitor = event_loop
         .primary_monitor()
         .expect("We don't support having no monitors");
+    info!("created monitor");
     let window_builder = WindowBuilder::new()
         .with_resizable(false)
         .with_fullscreen(Some(winit::window::Fullscreen::Borderless(Some(monitor))));
+    info!("created window builder");
     let window = Arc::new(
         window_builder
             .build(&event_loop)
             .expect("unable to build window"),
     );
+    info!("created window");
     let mut window_input = Input::new();
+    info!("created window input");
     let mut on_tick_timer = Instant::now();
     let mut on_render_timer = Instant::now();
     let mut gpu = CoGr::new(&window, &event_loop)?;
+    info!("created gpu");
     let mut game = T::on_init(&mut gpu)?;
+    info!("created game");
 
     event_loop.run(move |event, _, control_flow| {
         puffin::profile_function!();

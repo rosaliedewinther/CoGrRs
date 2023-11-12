@@ -9,7 +9,7 @@ use egui::Ui;
 use crate::gpu::Pipeline;
 use bytemuck::Pod;
 use egui_wgpu::renderer::ScreenDescriptor;
-use log::info;
+use tracing::info;
 use wgpu::util::DeviceExt;
 use wgpu::IndexFormat::Uint16;
 use wgpu::{

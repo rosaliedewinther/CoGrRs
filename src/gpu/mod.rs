@@ -4,6 +4,7 @@ use egui::Visuals;
 pub use encoder::*;
 pub use pipeline::*;
 pub use resources::*;
+pub use tracing::info;
 pub use wgpu;
 use wgpu_profiler::GpuProfiler;
 use wgpu_profiler::GpuTimerScopeResult;
@@ -86,6 +87,7 @@ pub struct CoGr {
 impl CoGr {
     pub fn new(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
         let instance = wgpu::Instance::new(InstanceDescriptor::default());
+        info!("created instance");
         let surface = unsafe { instance.create_surface(window.as_ref())? };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -93,28 +95,28 @@ impl CoGr {
             force_fallback_adapter: false,
         }))
         .expect("can't initialize gpu adapter");
+        info!("created adapter");
         let limits = wgpu::Limits {
             max_push_constant_size: 128,
-            max_storage_buffers_per_shader_stage: 32,
+            max_storage_buffers_per_shader_stage: 16,
             max_storage_buffer_binding_size: 1073741824,
             max_storage_textures_per_shader_stage: 16,
             ..Default::default()
         };
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
-                features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
-                    | wgpu::Features::SPIRV_SHADER_PASSTHROUGH
-                    | wgpu::Features::PUSH_CONSTANTS
-                    | wgpu::Features::TIMESTAMP_QUERY
-                    | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES,
+                features: Default::default(),
                 limits,
                 label: None,
             },
             None, // Trace path
         ))?;
+        info!("created device");
 
-        println!("{:?}", surface.get_capabilities(&adapter));
-        
+        info!(
+            "Surface capabilities: {:?}",
+            surface.get_capabilities(&adapter)
+        );
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -138,7 +140,7 @@ impl CoGr {
         });
         let state = egui_winit::State::new(event_loop);
 
-        let profiler = GpuProfiler::new(&adapter, &device, &queue,4);
+        let profiler = GpuProfiler::new(&adapter, &device, &queue, 4);
 
         Ok(Self {
             surface,
