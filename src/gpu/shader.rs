@@ -1,5 +1,5 @@
+
 use anyhow::{anyhow, Result};
-use hassle_rs::{compile_hlsl, validate_dxil};
 use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
 
 pub struct Shader {
@@ -16,17 +16,28 @@ impl Shader {
     pub fn compile_shader(shader_file: &str) -> Result<Shader> {
         let code = std::fs::read_to_string(shader_file)?;
 
-        let dxil = match compile_hlsl(shader_file, &code, "main", "cs_6_5", &[], &[]) {
-            Ok(data) => data,
-            Err(err) => panic!("{}", err),
-        };
-        let result = validate_dxil(&dxil);
+        //let dxil = match compile_hlsl(shader_file, &code, "main", "cs_6_5", &[], &[]) {
+        //    Ok(data) => data,
+        //    Err(err) => panic!("{}", err),
+        //};
+        //let result = validate_dxil(&dxil);
+//
+        //if let Some(err) = result.err() {
+        //    println!("validation failed: {}", err);
+        //}
+//
+        //let spirv = compile_hlsl(shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
+//
 
-        if let Some(err) = result.err() {
-            println!("validation failed: {}", err);
-        }
+        let mut compiler = shaderc::Compiler::new().unwrap();
+        let mut options = shaderc::CompileOptions::new().unwrap();
+        options.set_source_language(shaderc::SourceLanguage::HLSL);
+        //options.add_macro_definition("EP", Some("main"));
+        let spirv =  compiler.compile_into_spirv(
+            &code, shaderc::ShaderKind::Compute,
+            shader_file, "main", Some(&options)).unwrap().as_binary_u8().to_vec();
+        
 
-        let spirv = compile_hlsl(shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
 
         let reflector =
             ShaderModule::load_u8_data(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;

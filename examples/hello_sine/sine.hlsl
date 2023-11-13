@@ -1,4 +1,4 @@
-RWTexture2D<unorm float4> to_draw_texture;
+RWTexture2D<float4> to_draw_texture;
 
 struct GpuData
 {

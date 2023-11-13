@@ -85,6 +85,9 @@ impl Pipeline {
                 })
         };
 
+        println!("{:#?}", shader
+        .bindings);
+
         let bind_group_layout_entries = shader
             .bindings
             .iter()
