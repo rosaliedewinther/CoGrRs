@@ -21,7 +21,7 @@ struct GpuData {
 impl Game for HelloSine {
     fn on_init(gpu: &mut CoGr) -> Result<Self> {
         let to_draw_texture =
-            gpu.texture("to_draw", TextureRes::FullRes, TextureFormat::Rgba32Float);
+            gpu.texture("to_draw", TextureRes::FullRes, TextureFormat::Rgba8Unorm);
         let draw_pipeline = gpu.pipeline("examples/hello_sine/sine.hlsl")?;
         Ok(HelloSine {
             to_draw_texture,
@@ -31,11 +31,12 @@ impl Game for HelloSine {
     }
 
     fn on_render(&mut self, gpu: &mut CoGr, _input: &Input, dt: f32) -> Result<()> {
+        info!("on_render");
         let width = gpu.config.width;
         let height = gpu.config.height;
+        let uniform_buffer = gpu.buffer("gpu data", 1, std::mem::size_of::<GpuData>());
         let mut encoder = gpu.get_encoder_for_draw()?;
 
-        info!("hello");
 
         self.time += dt;
         let gpu_data = GpuData {
@@ -43,13 +44,13 @@ impl Game for HelloSine {
             width: encoder.width(),
             height: encoder.height(),
         };
+        encoder.set_buffer_data(&uniform_buffer, [gpu_data])?;
         encoder.dispatch_pipeline(
             &mut self.draw_pipeline,
             (div_ceil(width, 32), div_ceil(height, 32), 1),
-            &gpu_data,
-            &[&self.to_draw_texture],
+            &[&self.to_draw_texture, &uniform_buffer],
         )?;
-        encoder.to_screen(&self.to_draw_texture, TextureFormat::Rgba32Float)?;
+        encoder.to_screen(&self.to_draw_texture, TextureFormat::Rgba8Unorm)?;
 
         Ok(())
     }

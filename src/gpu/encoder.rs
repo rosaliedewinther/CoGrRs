@@ -234,11 +234,10 @@ impl Encoder<'_> {
         self.gpu_context.config.height
     }
     // todo: change resources to accept either texture or buffer handle
-    pub fn dispatch_pipeline<PushConstants: Pod>(
+    pub fn dispatch_pipeline(
         &mut self,
         pipeline: &mut Pipeline,
         work_groups: (u32, u32, u32),
-        push_constants: &PushConstants,
         resources: &[&ResourceHandle],
     ) -> Result<()> {
         puffin::profile_function!();
@@ -300,9 +299,6 @@ impl Encoder<'_> {
 
                 compute_pass.set_pipeline(&pipeline.pipeline);
                 compute_pass.set_bind_group(0, pipeline.last_bind_group.as_ref().unwrap(), &[]);
-                if size_of_val(push_constants) != 0 {
-                    compute_pass.set_push_constants(0, bytemuck::bytes_of(push_constants));
-                }
                 compute_pass.dispatch_workgroups(work_groups.0, work_groups.1, work_groups.2);
             }
         );

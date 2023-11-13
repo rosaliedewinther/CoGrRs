@@ -31,29 +31,22 @@ where
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
     puffin::set_scopes_on(true);
     let event_loop = EventLoop::new();
-    info!("created event loop");
     let monitor = event_loop
         .primary_monitor()
         .expect("We don't support having no monitors");
-    info!("created monitor");
     let window_builder = WindowBuilder::new()
         .with_resizable(false)
         .with_fullscreen(Some(winit::window::Fullscreen::Borderless(Some(monitor))));
-    info!("created window builder");
     let window = Arc::new(
         window_builder
             .build(&event_loop)
             .expect("unable to build window"),
     );
-    info!("created window");
     let mut window_input = Input::new();
-    info!("created window input");
     let mut on_tick_timer = Instant::now();
     let mut on_render_timer = Instant::now();
     let mut gpu = CoGr::new(&window, &event_loop)?;
-    info!("created gpu");
     let mut game = T::on_init(&mut gpu)?;
-    info!("created game");
 
     event_loop.run(move |event, _, control_flow| {
         puffin::profile_function!();

@@ -85,9 +85,6 @@ impl Pipeline {
                 })
         };
 
-        println!("{:#?}", shader
-        .bindings);
-
         let bind_group_layout_entries = shader
             .bindings
             .iter()
@@ -106,7 +103,8 @@ impl Pipeline {
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
-                    _ => panic!("impossible binding type"),
+                    ReflectDescriptorType::UniformBuffer => wgpu::BindingType::Buffer { ty:  wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None },
+                    binding => panic!("impossible binding type: {:#?}", binding),
                 },
                 count: None,
             })
@@ -120,21 +118,13 @@ impl Pipeline {
                     entries: bind_group_layout_entries.as_slice(),
                 });
 
-        let push_constant_range_vec = match shader.push_constant_size {
-            Some(n) => vec![wgpu::PushConstantRange {
-                stages: wgpu::ShaderStages::COMPUTE,
-                range: 0..n,
-            }],
-            None => vec![],
-        };
-
         let pipeline_layout =
             gpu_context
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some(&(shader_file.to_owned() + "_layout")),
                     bind_group_layouts: &[&bind_group_layout],
-                    push_constant_ranges: push_constant_range_vec.as_slice(),
+                    push_constant_ranges: &[],
                 });
 
         let pipeline =

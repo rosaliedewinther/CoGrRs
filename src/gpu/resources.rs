@@ -1,11 +1,12 @@
 use std::{
     cell::RefCell,
     hash::{Hash, Hasher},
-    ops::Sub,
+    ops::{Sub, SubAssign},
     rc::Rc,
 };
 
 use anyhow::{anyhow, Result};
+use tracing::info;
 use std::fmt::Debug;
 use wgpu::{
     util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages,
@@ -149,8 +150,8 @@ impl ResourceHandle {
     }
     pub fn decrement(&mut self) {
         match self {
-            ResourceHandle::Texture(t) => t.borrow_mut().sub(1),
-            ResourceHandle::Buffer(b) => b.borrow_mut().sub(1),
+            ResourceHandle::Texture(t) => t.borrow_mut().sub_assign(1),
+            ResourceHandle::Buffer(b) => b.borrow_mut().sub_assign(1),
         };
     }
     pub fn ptr_eq(&self, other: &Self) -> bool {
@@ -172,7 +173,7 @@ impl Hash for ResourceHandle {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct ResourcePool {
     pub recreate_resources: bool,
     pub buffers: Vec<Buffer>,
@@ -196,6 +197,7 @@ impl ResourcePool {
         format: wgpu::TextureFormat,
     ) -> ResourceHandle {
         puffin::profile_function!();
+        info!("creating texture {} with resolution {:?} and format {:?}", name, resolution, format);
         let texture = Texture::new(name, resolution, format);
         let handle = ResourceHandle::new_t(self.textures.len());
         self.textures.push(texture);
@@ -210,6 +212,7 @@ impl ResourcePool {
         element_size: usize,
     ) -> ResourceHandle {
         puffin::profile_function!();
+        info!("creating buffer {} with {:?} elements of size {} each", name, elements, element_size);
         let buffer = Buffer::new(name, elements, element_size);
         let handle = ResourceHandle::new_b(self.buffers.len());
         self.buffers.push(buffer);
@@ -217,43 +220,15 @@ impl ResourcePool {
         handle
     }
 
-    pub fn print_resources(&self) {
-        self.buffers.iter().enumerate().for_each(|(index, buffer)| {
-            println!(
-                "Index {}: \n\tBuffer: {} \n\tElements: {:?} \n\tElement size: {} \n\tAllocated: {}",
-                index,
-                buffer.name,
-                buffer.elements,
-                buffer.element_size,
-                buffer.buffer.is_some()
-            )
-        });
-        self.textures
-            .iter()
-            .enumerate()
-            .for_each(|(index, texture)| {
-                println!(
-                "Index {}: \n\tTexture: {} \n\tResolution: {:?} \n\tFormat: {:?} \n\tAllocated: {}",
-                index,
-                texture.name,
-                texture.resolution,
-                texture.format,
-                texture.texture.is_some()
-            )
-            });
-    }
-
-    pub fn prepare_resources(
-        &mut self,
-        device: &wgpu::Device,
-        config: &wgpu::SurfaceConfiguration,
-    ) {
+    pub fn clean_up_resources(&mut self){
         puffin::profile_function!();
+        info!("{:?}", self.buffer_handles);
         // remove all resources which are only referenced by resource pool
         let mut i = 0;
         while i < self.buffer_handles.len() {
             let handle = &self.buffer_handles[i];
             if handle.reference_count() == 1 {
+                info!("removing buffer at index {}, {} buffer(s) left", i, self.buffers.len()-1);
                 self.buffers.remove(i);
                 self.buffer_handles.remove(i);
                 self.buffer_handles.iter_mut().for_each(|handle| {
@@ -267,16 +242,26 @@ impl ResourcePool {
         while i < self.texture_handles.len() {
             let handle = &self.texture_handles[i];
             if handle.reference_count() == 1 {
+                info!("removing texture at index {}, {} texture(s) left", i, self.textures.len()-1);
                 self.textures.remove(i);
                 self.texture_handles.remove(i);
-                self.buffer_handles.iter_mut().for_each(|handle| {
+                self.texture_handles.iter_mut().for_each(|handle| {
                     handle.decrement();
                 });
                 continue;
             }
             i += 1;
         }
+        info!("{:?}", self.buffer_handles);
+    }
 
+    pub fn prepare_resources(
+        &mut self,
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+    ) {
+        puffin::profile_function!();
+        self.clean_up_resources();
         if self.recreate_resources {
             self.textures.iter_mut().for_each(|texture| {
                 texture.texture = None;
@@ -346,7 +331,7 @@ pub(crate) fn init_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: texture_dimension,
-        usage: TextureUsages::STORAGE_BINDING | TextureUsages::COPY_DST | TextureUsages::COPY_SRC,
+        usage: TextureUsages::STORAGE_BINDING | TextureUsages::COPY_DST | TextureUsages::COPY_SRC | TextureUsages::TEXTURE_BINDING,
         view_formats: &[format],
     });
 
@@ -431,9 +416,8 @@ pub(crate) fn init_storage_buffer(
     device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(buffer_name),
         size,
-        usage: wgpu::BufferUsages::STORAGE
-            | wgpu::BufferUsages::COPY_DST
-            | wgpu::BufferUsages::COPY_SRC,
+        usage: wgpu::BufferUsages::COPY_DST
+            | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::STORAGE,
         mapped_at_creation: false,
     })
 }

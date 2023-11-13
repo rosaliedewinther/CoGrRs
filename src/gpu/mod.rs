@@ -3,6 +3,7 @@ use egui::Style;
 use egui::Visuals;
 use tracing::info;
 use wgpu::Features;
+use wgpu::Instance;
 use wgpu_profiler::GpuProfiler;
 use wgpu_profiler::GpuTimerScopeResult;
 
@@ -89,7 +90,6 @@ pub struct CoGr {
 impl CoGr {
     pub fn new(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
         let instance = wgpu::Instance::new(InstanceDescriptor::default());
-        info!("created instance");
         let surface = unsafe { instance.create_surface(window.as_ref())? };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -97,7 +97,11 @@ impl CoGr {
             force_fallback_adapter: false,
         }))
         .expect("can't initialize gpu adapter");
-        info!("created adapter");
+        info!("{:?}", surface.get_capabilities(&adapter));
+        info!("{:?}", adapter.features());
+        info!("{:?}", adapter.get_info());
+        info!("{:?}", adapter.limits());
+        info!("{:?}", adapter.get_downlevel_capabilities());
         let limits = wgpu::Limits {
             max_push_constant_size: 128,
             max_storage_buffers_per_shader_stage: 16,
@@ -107,18 +111,14 @@ impl CoGr {
         };
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
-                features: Features::SPIRV_SHADER_PASSTHROUGH | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES | Features::PUSH_CONSTANTS,
+                features: Features::SPIRV_SHADER_PASSTHROUGH | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                 limits,
                 label: None,
             },
             None, // Trace path
         ))?;
-        info!("created device");
-
-        info!(
-            "Surface capabilities: {:?}",
-            surface.get_capabilities(&adapter)
-        );
+        info!("{:?}", device.features());
+        info!("{:?}", device.limits());
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -185,6 +185,7 @@ impl CoGr {
         puffin::profile_function!();
         self.resource_pool
             .prepare_resources(&self.device, &self.config);
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -221,8 +222,5 @@ impl CoGr {
     }
     pub fn pipeline(&mut self, shader_file: &str) -> Result<Pipeline> {
         Ok(Pipeline::new(self, shader_file))
-    }
-    pub fn print_resources(&self) {
-        self.resource_pool.print_resources();
     }
 }

@@ -1,19 +1,22 @@
-RWTexture2D<float4> to_draw_texture;
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
-struct GpuData
+layout(rgba8) uniform image2D to_draw_texture;
+layout(std140) buffer gpu_data
 {
     float time;
     uint width;
     uint height;
 };
 
-[[vk::push_constant]] GpuData gpu_data;
+void main() {
+    uvec3 global_invocation_id = gl_GlobalInvocationID;
+    uint x = global_invocation_id.x;
+    uint y = global_invocation_id.y;
+    ivec2 pos = ivec2(x,y);
 
-[numthreads(32, 32, 1)] void main(uint2 threadId
-                                  : SV_DispatchThreadID)
-{
-    float val = sin(float(threadId.x * 5) / gpu_data.width + gpu_data.time) / 2 + 0.5; // calulate sin value at certain x
-    bool color = val * gpu_data.height < threadId.y + 1 && val * gpu_data.height > threadId.y - 1;   // the pixel has to be colored if it is at most 1 pixel away from the sin value
-
-    to_draw_texture[threadId] = float4(color, 0, 0, 1);
+    float val = sin(float(x * 5) / width + time) / 2 + 0.5; // calulate sin value at certain x
+    bool color = val * height < y + 1 && val * height > y - 1;   // the pixel has to be colored if it is at most 1 pixel away from the sin value
+    
+    imageStore(to_draw_texture, pos, vec4(color, 0, 0, 1));
+    return;
 }
