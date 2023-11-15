@@ -1,4 +1,3 @@
-
 use anyhow::{anyhow, Result};
 use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
 
@@ -15,26 +14,27 @@ impl Shader {
     pub fn compile_shader(shader_file: &str) -> Result<Shader> {
         let code = std::fs::read_to_string(shader_file)?;
 
-        let mut compiler = shaderc::Compiler::new().unwrap();
+        let compiler = shaderc::Compiler::new().unwrap();
         let mut options = shaderc::CompileOptions::new().unwrap();
         options.set_forced_version_profile(460, shaderc::GlslProfile::None);
         options.set_auto_bind_uniforms(true);
         //options.add_macro_definition("EP", Some("main"));
         let spirv = match compiler.compile_into_spirv(
-            &code, shaderc::ShaderKind::Compute,
-            shader_file, "main", Some(&options)){
-                Ok(result) => result.as_binary_u8().to_vec(),
-                Err(error) => {
-                    println!("{}", error);
-                    panic!("compilation error");
-                }
-            };
-        
-
+            &code,
+            shaderc::ShaderKind::Compute,
+            shader_file,
+            "main",
+            Some(&options),
+        ) {
+            Ok(result) => result.as_binary_u8().to_vec(),
+            Err(error) => {
+                println!("{}", error);
+                panic!("compilation error");
+            }
+        };
 
         let reflector =
             ShaderModule::load_u8_data(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;
-
 
         //let compute_group_sizes = dbg!(reflector.enumerate_input_variables(None));
         //dbg!(reflector.enumerate_descriptor_bindings(None));

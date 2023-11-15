@@ -3,3 +3,4 @@ output.log
 *.data
 *.dat
 *lucy.obj
+.DS_Store

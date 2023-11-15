@@ -37,7 +37,6 @@ impl Game for HelloSine {
         let uniform_buffer = gpu.buffer("gpu data", 1, std::mem::size_of::<GpuData>());
         let mut encoder = gpu.get_encoder_for_draw()?;
 
-
         self.time += dt;
         let gpu_data = GpuData {
             time: self.time,
@@ -47,7 +46,7 @@ impl Game for HelloSine {
         encoder.set_buffer_data(&uniform_buffer, [gpu_data])?;
         encoder.dispatch_pipeline(
             &mut self.draw_pipeline,
-            (div_ceil(width, 32), div_ceil(height, 32), 1),
+            (div_ceil(width, 16), div_ceil(height, 16), 1),
             &[&self.to_draw_texture, &uniform_buffer],
         )?;
         encoder.to_screen(&self.to_draw_texture, TextureFormat::Rgba8Unorm)?;

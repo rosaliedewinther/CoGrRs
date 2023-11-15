@@ -1,11 +1,12 @@
+use bytemuck::cast_slice;
 use inline_spirv::include_spirv;
 use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt},
+    util::{make_spirv, BufferInitDescriptor, DeviceExt},
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, BlendState, Buffer, BufferUsages,
     ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline,
-    RenderPipelineDescriptor, ShaderModuleDescriptorSpirV, ShaderStages, StorageTextureAccess,
+    RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderStages, StorageTextureAccess,
     TextureFormat, TextureView, TextureViewDimension, VertexState,
 };
 
@@ -42,27 +43,23 @@ impl ToScreenPipeline {
         bindgroup_layout: &BindGroupLayout,
         texture_format: TextureFormat,
     ) -> RenderPipeline {
-        let f_shader = unsafe {
-            device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
-                label: Some("../../shaders/to_screen.frag"),
-                source: std::borrow::Cow::Borrowed(include_spirv!(
-                    "shaders/to_screen.frag",
-                    frag,
-                    vulkan1_2
-                )),
-            })
-        };
+        let f_shader = device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("../../shaders/to_screen.frag"),
+            source: make_spirv(cast_slice(include_spirv!(
+                "shaders/to_screen.frag",
+                frag,
+                vulkan1_2
+            ))),
+        });
 
-        let v_shader = unsafe {
-            device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
-                label: Some("../../shaders/to_screen.vert"),
-                source: std::borrow::Cow::Borrowed(include_spirv!(
-                    "shaders/to_screen.vert",
-                    vert,
-                    vulkan1_2
-                )),
-            })
-        };
+        let v_shader = device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("../../shaders/to_screen.vert"),
+            source: make_spirv(cast_slice(include_spirv!(
+                "shaders/to_screen.vert",
+                vert,
+                vulkan1_2
+            ))),
+        });
         let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
             bind_group_layouts: &[bindgroup_layout],

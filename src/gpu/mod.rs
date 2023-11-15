@@ -2,8 +2,8 @@ use egui::epaint::Shadow;
 use egui::Style;
 use egui::Visuals;
 use tracing::info;
+use wgpu::Backends;
 use wgpu::Features;
-use wgpu::Instance;
 use wgpu_profiler::GpuProfiler;
 use wgpu_profiler::GpuTimerScopeResult;
 
@@ -28,10 +28,10 @@ mod shader;
 mod to_screen_pipeline;
 
 pub use encoder::*;
-pub use to_screen_pipeline::*;
 pub use pipeline::*;
-pub use shader::*;
 pub use resources::*;
+pub use shader::*;
+pub use to_screen_pipeline::*;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -89,7 +89,10 @@ pub struct CoGr {
 
 impl CoGr {
     pub fn new(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
-        let instance = wgpu::Instance::new(InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(InstanceDescriptor {
+            backends: Backends::VULKAN,
+            ..Default::default()
+        });
         let surface = unsafe { instance.create_surface(window.as_ref())? };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -103,7 +106,6 @@ impl CoGr {
         info!("{:?}", adapter.limits());
         info!("{:?}", adapter.get_downlevel_capabilities());
         let limits = wgpu::Limits {
-            max_push_constant_size: 128,
             max_storage_buffers_per_shader_stage: 16,
             max_storage_buffer_binding_size: 1073741824,
             max_storage_textures_per_shader_stage: 16,
@@ -111,7 +113,7 @@ impl CoGr {
         };
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
-                features: Features::SPIRV_SHADER_PASSTHROUGH | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                 limits,
                 label: None,
             },

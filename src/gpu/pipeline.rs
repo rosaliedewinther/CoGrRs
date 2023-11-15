@@ -1,4 +1,7 @@
+use std::borrow::Cow;
+
 use spirv_reflect::types::{ReflectDescriptorType, ReflectDimension, ReflectImageFormat};
+use wgpu::{util::make_spirv, ShaderModuleDescriptor, ShaderModuleDescriptorSpirV};
 
 use crate::gpu::shader::Shader;
 
@@ -74,14 +77,20 @@ fn map_texture_format(format: &ReflectImageFormat) -> wgpu::TextureFormat {
 impl Pipeline {
     pub(crate) fn new(gpu_context: &CoGr, shader_file: &str) -> Self {
         let shader = Shader::compile_shader(shader_file).unwrap();
-        let shader_data: &[u32] = bytemuck::cast_slice(shader.shader.as_slice());
+        let shader_data: &[u8] = bytemuck::cast_slice(shader.shader.as_slice());
 
         let cs_module = unsafe {
+            //gpu_context
+            //    .device
+            //    .create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
+            //        label: Some(&shader.file),
+            //        source: std::borrow::Cow::Borrowed(shader_data),
+            //    })
             gpu_context
                 .device
-                .create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
-                    label: Some(&shader.file),
-                    source: std::borrow::Cow::Borrowed(shader_data),
+                .create_shader_module(ShaderModuleDescriptor {
+                    label: Some(shader_file),
+                    source: make_spirv(shader_data),
                 })
         };
 
@@ -103,7 +112,11 @@ impl Pipeline {
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
-                    ReflectDescriptorType::UniformBuffer => wgpu::BindingType::Buffer { ty:  wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None },
+                    ReflectDescriptorType::UniformBuffer => wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
                     binding => panic!("impossible binding type: {:#?}", binding),
                 },
                 count: None,
