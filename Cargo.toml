@@ -18,10 +18,8 @@ inline-spirv = { version = "0.1", default-features = false, features = [
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = "0.3"
 spirv-reflect = "0.2"
-parking_lot = "0.12"
 anyhow = "1.0"
 shaderc = "0.8"
-itertools = "0.11"
 
 glam = { version = "0.24", features = ["bytemuck"] }
 puffin = "0.17"
@@ -33,6 +31,3 @@ egui-winit = "0.23"
 
 [profile.release]
 debug = true
-
-[patch.crates-io]
-wgpu = { path = "../wgpu/wgpu" }

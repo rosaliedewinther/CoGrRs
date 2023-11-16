@@ -1,7 +1,8 @@
-use std::borrow::Cow;
-
 use spirv_reflect::types::{ReflectDescriptorType, ReflectDimension, ReflectImageFormat};
-use wgpu::{util::make_spirv, ShaderModuleDescriptor, ShaderModuleDescriptorSpirV};
+use wgpu::{
+    util::make_spirv, BindGroup, BindGroupLayout, ComputePipeline, ShaderModuleDescriptor,
+    TextureFormat, TextureViewDimension,
+};
 
 use crate::gpu::shader::Shader;
 
@@ -10,19 +11,19 @@ use super::CoGr;
 #[derive(Debug)]
 pub struct Pipeline {
     pub pipeline_name: String,
-    pub pipeline: wgpu::ComputePipeline,
-    pub bind_group_layout: wgpu::BindGroupLayout,
+    pub pipeline: ComputePipeline,
+    pub bind_group_layout: BindGroupLayout,
     pub last_bind_group_hash: u64,
-    pub last_bind_group: Option<wgpu::BindGroup>,
+    pub last_bind_group: Option<BindGroup>,
 }
 
-fn map_texture_dimension(dimension: &ReflectDimension) -> wgpu::TextureViewDimension {
+fn map_texture_dimension(dimension: &ReflectDimension) -> TextureViewDimension {
     match dimension {
         ReflectDimension::Undefined => unimplemented!(),
-        ReflectDimension::Type1d => wgpu::TextureViewDimension::D1,
-        ReflectDimension::Type2d => wgpu::TextureViewDimension::D2,
-        ReflectDimension::Type3d => wgpu::TextureViewDimension::D3,
-        ReflectDimension::Cube => wgpu::TextureViewDimension::Cube,
+        ReflectDimension::Type1d => TextureViewDimension::D1,
+        ReflectDimension::Type2d => TextureViewDimension::D2,
+        ReflectDimension::Type3d => TextureViewDimension::D3,
+        ReflectDimension::Cube => TextureViewDimension::Cube,
         ReflectDimension::Rect => unimplemented!(),
         ReflectDimension::Buffer => unimplemented!(),
         ReflectDimension::SubPassData => unimplemented!(),
@@ -32,67 +33,58 @@ fn map_texture_dimension(dimension: &ReflectDimension) -> wgpu::TextureViewDimen
 fn map_texture_format(format: &ReflectImageFormat) -> wgpu::TextureFormat {
     match format {
         ReflectImageFormat::Undefined => unimplemented!(),
-        ReflectImageFormat::RGBA32_FLOAT => wgpu::TextureFormat::Rgba32Float,
-        ReflectImageFormat::RGBA16_FLOAT => wgpu::TextureFormat::Rgba16Float,
-        ReflectImageFormat::R32_FLOAT => wgpu::TextureFormat::R32Float,
-        ReflectImageFormat::RGBA8 => wgpu::TextureFormat::Rgba8Unorm,
-        ReflectImageFormat::RGBA8_SNORM => wgpu::TextureFormat::Rgba8Snorm,
-        ReflectImageFormat::RG32_FLOAT => wgpu::TextureFormat::Rg32Float,
-        ReflectImageFormat::RG16_FLOAT => wgpu::TextureFormat::Rg16Float,
-        ReflectImageFormat::R11G11B10_FLOAT => wgpu::TextureFormat::Rg11b10Float,
-        ReflectImageFormat::R16_FLOAT => wgpu::TextureFormat::R16Float,
-        ReflectImageFormat::RGBA16 => wgpu::TextureFormat::Rgba16Unorm,
-        ReflectImageFormat::RGB10A2 => wgpu::TextureFormat::Rgb10a2Unorm,
-        ReflectImageFormat::RG16 => wgpu::TextureFormat::Rg16Snorm,
-        ReflectImageFormat::RG8 => wgpu::TextureFormat::Rg8Unorm,
-        ReflectImageFormat::R16 => wgpu::TextureFormat::R16Unorm,
-        ReflectImageFormat::R8 => wgpu::TextureFormat::R8Unorm,
-        ReflectImageFormat::RGBA16_SNORM => wgpu::TextureFormat::Rgba16Snorm,
-        ReflectImageFormat::RG16_SNORM => wgpu::TextureFormat::Rg16Snorm,
-        ReflectImageFormat::RG8_SNORM => wgpu::TextureFormat::Rg8Snorm,
-        ReflectImageFormat::R16_SNORM => wgpu::TextureFormat::R16Snorm,
-        ReflectImageFormat::R8_SNORM => wgpu::TextureFormat::R8Snorm,
-        ReflectImageFormat::RGBA32_INT => wgpu::TextureFormat::Rgba32Sint,
-        ReflectImageFormat::RGBA16_INT => wgpu::TextureFormat::Rgba16Sint,
-        ReflectImageFormat::RGBA8_INT => wgpu::TextureFormat::Rgba8Sint,
-        ReflectImageFormat::R32_INT => wgpu::TextureFormat::R32Sint,
-        ReflectImageFormat::RG32_INT => wgpu::TextureFormat::Rg32Sint,
-        ReflectImageFormat::RG16_INT => wgpu::TextureFormat::Rg16Sint,
-        ReflectImageFormat::RG8_INT => wgpu::TextureFormat::Rg8Sint,
-        ReflectImageFormat::R16_INT => wgpu::TextureFormat::R16Sint,
-        ReflectImageFormat::R8_INT => wgpu::TextureFormat::R8Sint,
-        ReflectImageFormat::RGBA32_UINT => wgpu::TextureFormat::Rgba32Uint,
-        ReflectImageFormat::RGBA16_UINT => wgpu::TextureFormat::Rgba16Uint,
-        ReflectImageFormat::RGBA8_UINT => wgpu::TextureFormat::Rgba8Uint,
-        ReflectImageFormat::R32_UINT => wgpu::TextureFormat::R32Uint,
+        ReflectImageFormat::RGBA32_FLOAT => TextureFormat::Rgba32Float,
+        ReflectImageFormat::RGBA16_FLOAT => TextureFormat::Rgba16Float,
+        ReflectImageFormat::R32_FLOAT => TextureFormat::R32Float,
+        ReflectImageFormat::RGBA8 => TextureFormat::Rgba8Unorm,
+        ReflectImageFormat::RGBA8_SNORM => TextureFormat::Rgba8Snorm,
+        ReflectImageFormat::RG32_FLOAT => TextureFormat::Rg32Float,
+        ReflectImageFormat::RG16_FLOAT => TextureFormat::Rg16Float,
+        ReflectImageFormat::R11G11B10_FLOAT => TextureFormat::Rg11b10Float,
+        ReflectImageFormat::R16_FLOAT => TextureFormat::R16Float,
+        ReflectImageFormat::RGBA16 => TextureFormat::Rgba16Unorm,
+        ReflectImageFormat::RGB10A2 => TextureFormat::Rgb10a2Unorm,
+        ReflectImageFormat::RG16 => TextureFormat::Rg16Snorm,
+        ReflectImageFormat::RG8 => TextureFormat::Rg8Unorm,
+        ReflectImageFormat::R16 => TextureFormat::R16Unorm,
+        ReflectImageFormat::R8 => TextureFormat::R8Unorm,
+        ReflectImageFormat::RGBA16_SNORM => TextureFormat::Rgba16Snorm,
+        ReflectImageFormat::RG16_SNORM => TextureFormat::Rg16Snorm,
+        ReflectImageFormat::RG8_SNORM => TextureFormat::Rg8Snorm,
+        ReflectImageFormat::R16_SNORM => TextureFormat::R16Snorm,
+        ReflectImageFormat::R8_SNORM => TextureFormat::R8Snorm,
+        ReflectImageFormat::RGBA32_INT => TextureFormat::Rgba32Sint,
+        ReflectImageFormat::RGBA16_INT => TextureFormat::Rgba16Sint,
+        ReflectImageFormat::RGBA8_INT => TextureFormat::Rgba8Sint,
+        ReflectImageFormat::R32_INT => TextureFormat::R32Sint,
+        ReflectImageFormat::RG32_INT => TextureFormat::Rg32Sint,
+        ReflectImageFormat::RG16_INT => TextureFormat::Rg16Sint,
+        ReflectImageFormat::RG8_INT => TextureFormat::Rg8Sint,
+        ReflectImageFormat::R16_INT => TextureFormat::R16Sint,
+        ReflectImageFormat::R8_INT => TextureFormat::R8Sint,
+        ReflectImageFormat::RGBA32_UINT => TextureFormat::Rgba32Uint,
+        ReflectImageFormat::RGBA16_UINT => TextureFormat::Rgba16Uint,
+        ReflectImageFormat::RGBA8_UINT => TextureFormat::Rgba8Uint,
+        ReflectImageFormat::R32_UINT => TextureFormat::R32Uint,
+        ReflectImageFormat::RG32_UINT => TextureFormat::Rg32Uint,
+        ReflectImageFormat::RG16_UINT => TextureFormat::Rg16Uint,
+        ReflectImageFormat::RG8_UINT => TextureFormat::Rg8Uint,
+        ReflectImageFormat::R16_UINT => TextureFormat::R16Uint,
+        ReflectImageFormat::R8_UINT => TextureFormat::R8Uint,
         ReflectImageFormat::RGB10A2_UINT => unimplemented!(),
-        ReflectImageFormat::RG32_UINT => wgpu::TextureFormat::Rg32Uint,
-        ReflectImageFormat::RG16_UINT => wgpu::TextureFormat::Rg16Uint,
-        ReflectImageFormat::RG8_UINT => wgpu::TextureFormat::Rg8Uint,
-        ReflectImageFormat::R16_UINT => wgpu::TextureFormat::R16Uint,
-        ReflectImageFormat::R8_UINT => wgpu::TextureFormat::R8Uint,
     }
 }
 
 impl Pipeline {
     pub(crate) fn new(gpu_context: &CoGr, shader_file: &str) -> Self {
-        let shader = Shader::compile_shader(shader_file).unwrap();
-        let shader_data: &[u8] = bytemuck::cast_slice(shader.shader.as_slice());
+        let shader = Shader::compile_shader(gpu_context, shader_file).unwrap();
 
-        let cs_module = unsafe {
-            //gpu_context
-            //    .device
-            //    .create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
-            //        label: Some(&shader.file),
-            //        source: std::borrow::Cow::Borrowed(shader_data),
-            //    })
-            gpu_context
-                .device
-                .create_shader_module(ShaderModuleDescriptor {
-                    label: Some(shader_file),
-                    source: make_spirv(shader_data),
-                })
-        };
+        let cs_module = gpu_context
+            .device
+            .create_shader_module(ShaderModuleDescriptor {
+                label: Some(shader_file),
+                source: make_spirv(&shader.shader),
+            });
 
         let bind_group_layout_entries = shader
             .bindings
@@ -109,11 +101,6 @@ impl Pipeline {
                     },
                     ReflectDescriptorType::StorageBuffer => wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    ReflectDescriptorType::UniformBuffer => wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },

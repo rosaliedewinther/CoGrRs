@@ -1,8 +1,9 @@
 use std::{f32::consts::PI, mem::size_of};
 
-use bvh::{Bvh, BVHNode};
+use bvh::{BVHNode, Bvh, Triangle};
 use cogrrs::{
-    anyhow::Result, div_ceil, egui, main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureRes, glam::Vec3, glam::vec3, bytemuck::Zeroable, bytemuck::Pod, TextureFormat
+    anyhow::Result, bytemuck::Pod, bytemuck::Zeroable, div_ceil, egui, glam::vec3, glam::Vec3,
+    main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureFormat, TextureRes,
 };
 
 mod bvh;
@@ -13,6 +14,7 @@ struct RayTracer {
     to_draw: ResourceHandle,
     triangles: ResourceHandle,
     bvh_nodes: ResourceHandle,
+    camera_data: ResourceHandle,
     trace_pipeline: Pipeline,
     timings: [f32; 1000],
     timings_ptr: usize,
@@ -23,12 +25,12 @@ struct RayTracer {
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct CameraData {
     pub dir: Vec3,
-    pub pos: Vec3,
-    pub side: Vec3,
-    pub up: Vec3,
     pub width: f32,
+    pub pos: Vec3,
     pub half_width: f32,
+    pub side: Vec3,
     pub height: f32,
+    pub up: Vec3,
     pub half_height: f32,
     pub time: f32,
     padding1: u32,
@@ -41,9 +43,15 @@ impl Game for RayTracer {
         let mut bvh = Bvh::new("examples/ray_tracer/dragon.obj");
         bvh.build_bvh();
 
-        let to_draw = gpu.texture("to_draw_texture", TextureRes::FullRes, gpu.config.format);
-        let triangles = gpu.buffer("triangles", bvh.triangles.len(), size_of::<[Vec3; 4]>());
+        let to_draw = gpu.texture(
+            "to_draw_texture",
+            TextureRes::FullRes,
+            TextureFormat::Rgba8Unorm,
+        );
+        let triangles = gpu.buffer("triangles", bvh.triangles.len(), size_of::<Triangle>());
         let bvh_nodes = gpu.buffer("bvh_nodes", bvh.bvh_nodes.len(), size_of::<BVHNode>());
+        let camera_data = gpu.buffer("camera_data", 1, size_of::<CameraData>());
+        let trace_pipeline = gpu.pipeline("examples/ray_tracer/trace.glsl")?;
 
         {
             let mut encoder = gpu.get_encoder()?;
@@ -51,14 +59,13 @@ impl Game for RayTracer {
             encoder.set_buffer_data(&bvh_nodes, bvh.bvh_nodes)?;
         }
 
-        let trace_pipeline = gpu.pipeline("examples/ray_tracer/trace.hlsl")?;
-
         Ok(RayTracer {
             time: 0f32,
             distance: -1f32,
             to_draw,
             triangles,
             bvh_nodes,
+            camera_data,
             trace_pipeline,
             timings: [0f32; 1000],
             timings_ptr: 0,
@@ -104,14 +111,19 @@ impl Game for RayTracer {
         };
 
         let mut encoder = gpu.get_encoder_for_draw()?;
+        encoder.set_buffer_data(&self.camera_data, [camera_data])?;
         encoder.dispatch_pipeline(
             &mut self.trace_pipeline,
-            (div_ceil(width, 32), div_ceil(height, 32), 1),
-            &camera_data,
-            &[&self.to_draw, &self.triangles, &self.bvh_nodes],
+            (div_ceil(width, 16), div_ceil(height, 16), 1),
+            &[
+                &self.to_draw,
+                &self.triangles,
+                &self.bvh_nodes,
+                &self.camera_data,
+            ],
         )?;
 
-        encoder.to_screen(&self.to_draw, TextureFormat::Rgba32Float)?;
+        encoder.to_screen(&self.to_draw)?;
         encoder.draw_ui(|ctx| {
             egui::Window::new("debug").show(ctx, |ui| {
                 ui.label(format!("ms: {}", self.saved_timing * 1000f32));

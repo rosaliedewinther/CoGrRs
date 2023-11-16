@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
 
+use crate::CoGr;
+
 pub struct Shader {
     pub file: String,
     pub shader: Vec<u8>,
@@ -11,15 +13,14 @@ pub struct Shader {
 }
 
 impl Shader {
-    pub fn compile_shader(shader_file: &str) -> Result<Shader> {
+    pub fn compile_shader(gpu_context: &CoGr, shader_file: &str) -> Result<Shader> {
         let code = std::fs::read_to_string(shader_file)?;
 
-        let compiler = shaderc::Compiler::new().unwrap();
         let mut options = shaderc::CompileOptions::new().unwrap();
         options.set_forced_version_profile(460, shaderc::GlslProfile::None);
         options.set_auto_bind_uniforms(true);
-        //options.add_macro_definition("EP", Some("main"));
-        let spirv = match compiler.compile_into_spirv(
+        options.set_optimization_level(shaderc::OptimizationLevel::Performance);
+        let spirv = match gpu_context.shader_compiler.compile_into_spirv(
             &code,
             shaderc::ShaderKind::Compute,
             shader_file,
@@ -35,12 +36,6 @@ impl Shader {
 
         let reflector =
             ShaderModule::load_u8_data(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;
-
-        //let compute_group_sizes = dbg!(reflector.enumerate_input_variables(None));
-        //dbg!(reflector.enumerate_descriptor_bindings(None));
-        //dbg!(reflector.enumerate_descriptor_sets(None));
-        //dbg!(reflector.enumerate_entry_points());
-        //dbg!(reflector.enumerate_output_variables(None));
 
         let bindings = reflector
             .enumerate_descriptor_bindings(None)

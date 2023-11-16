@@ -3,7 +3,6 @@ use crate::Input;
 use anyhow::Result;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::info;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 use winit::dpi::PhysicalPosition;
@@ -24,7 +23,7 @@ where
     let subscriber = FmtSubscriber::builder()
         // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
         // will be written to stdout.
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::WARN)
         // completes the builder.
         .finish();
 

@@ -174,12 +174,12 @@ impl Hash for ResourceHandle {
 }
 
 #[derive(Default, Debug)]
-pub(crate) struct ResourcePool {
-    pub recreate_resources: bool,
-    pub buffers: Vec<Buffer>,
-    pub textures: Vec<Texture>,
-    pub buffer_handles: Vec<ResourceHandle>,
-    pub texture_handles: Vec<ResourceHandle>,
+pub struct ResourcePool {
+    pub(crate) recreate_resources: bool,
+    pub(crate) buffers: Vec<Buffer>,
+    pub(crate) textures: Vec<Texture>,
+    pub(crate) buffer_handles: Vec<ResourceHandle>,
+    pub(crate) texture_handles: Vec<ResourceHandle>,
 }
 
 impl ResourcePool {
@@ -190,7 +190,7 @@ impl ResourcePool {
         &self.buffers[handle.get_index()]
     }
 
-    pub fn texture(
+    pub(crate) fn texture(
         &mut self,
         name: String,
         resolution: TextureRes,
@@ -208,7 +208,7 @@ impl ResourcePool {
         handle
     }
 
-    pub fn buffer(
+    pub(crate) fn buffer(
         &mut self,
         name: String,
         elements: BufferSize,
@@ -226,7 +226,7 @@ impl ResourcePool {
         handle
     }
 
-    pub fn clean_up_resources(&mut self) {
+    pub(crate) fn clean_up_resources(&mut self) {
         puffin::profile_function!();
         info!("{:?}", self.buffer_handles);
         // remove all resources which are only referenced by resource pool
@@ -269,7 +269,7 @@ impl ResourcePool {
         info!("{:?}", self.buffer_handles);
     }
 
-    pub fn prepare_resources(
+    pub(crate) fn prepare_resources(
         &mut self,
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,

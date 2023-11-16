@@ -1,6 +1,7 @@
 use egui::epaint::Shadow;
 use egui::Style;
 use egui::Visuals;
+use shaderc::Compiler;
 use tracing::info;
 use wgpu::Backends;
 use wgpu::Features;
@@ -12,11 +13,10 @@ use anyhow::Result;
 use egui_winit::State;
 use std::fmt::Debug;
 use std::sync::Arc;
-use wgpu::Buffer;
 use wgpu::InstanceDescriptor;
 use wgpu::TextureFormat;
 use wgpu::TextureFormat::Bgra8UnormSrgb;
-use wgpu::{Texture, TextureView};
+use wgpu::TextureView;
 use winit::event::WindowEvent;
 use winit::event_loop::EventLoop;
 use winit::window::Window;
@@ -71,10 +71,12 @@ pub struct CoGr {
     pub config: wgpu::SurfaceConfiguration,
     window: Arc<Window>,
 
+    pub(crate) shader_compiler: Compiler,
+
     profiler: GpuProfiler,
     frame_timings: Vec<GpuTimerScopeResult>,
 
-    resource_pool: ResourcePool,
+    pub resource_pool: ResourcePool,
     last_to_screen_texture_handle: Option<ResourceHandle>,
     last_to_screen_pipeline: Option<ToScreenPipeline>,
 
@@ -113,7 +115,10 @@ impl CoGr {
         };
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
-                features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                features: Features::TIMESTAMP_QUERY
+                    | Features::TIMESTAMP_QUERY_INSIDE_PASSES
+                    | Features::SPIRV_SHADER_PASSTHROUGH
+                    | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                 limits,
                 label: None,
             },
@@ -153,6 +158,7 @@ impl CoGr {
             config,
             window: window.clone(),
             resource_pool: ResourcePool::default(),
+            shader_compiler: Compiler::new().unwrap(),
 
             profiler,
             frame_timings: Vec::new(),

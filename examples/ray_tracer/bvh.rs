@@ -1,9 +1,14 @@
+use cogrrs::{
+    bytemuck::{Pod, Zeroable},
+    glam::vec3,
+    glam::Vec3,
+};
+use glam::{Vec4, Vec4Swizzles};
 use std::fmt::Debug;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
 };
-use cogrrs::{bytemuck::{Pod, Zeroable}, glam::Vec3, glam::vec3};
 
 #[repr(C, align(32))]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -18,7 +23,7 @@ pub struct BVHNode {
     pub count: i32,
 }
 #[repr(C, align(32))]
-#[derive(Pod , Zeroable, Copy, Clone)]
+#[derive(Pod, Zeroable, Copy, Clone)]
 pub struct Aabb {
     pub minx: f32,
     pub miny: f32,
@@ -30,7 +35,7 @@ pub struct Aabb {
     _padding2: f32,
 }
 #[repr(C)]
-#[derive(Pod , Zeroable, Copy, Clone)]
+#[derive(Pod, Zeroable, Copy, Clone)]
 pub struct Ray {
     pub o: Vec3,
     pub t: f32,
@@ -40,8 +45,17 @@ pub struct Ray {
     pub _padding1: u32,
 }
 
+#[repr(C)]
+#[derive(Pod, Zeroable, Clone, Copy)]
+pub struct Triangle {
+    pub p0: Vec4,
+    pub p1: Vec4,
+    pub p2: Vec4,
+}
+
+#[repr(C)]
 pub struct Bvh {
-    pub triangles: Vec<[Vec3; 4]>,
+    pub triangles: Vec<Triangle>,
     pub indices: Vec<u32>,
     pub bvh_nodes: Vec<BVHNode>,
     pub centroids: Vec<Vec3>,
@@ -117,15 +131,12 @@ impl Bvh {
             .map(|(i, _)| i as u32)
             .collect();
 
-        let triangles: Vec<[Vec3; 4]> = triangles
+        let triangles: Vec<Triangle> = triangles
             .iter()
-            .map(|tri| {
-                [
-                    vertices[tri[0] as usize],
-                    vertices[tri[1] as usize],
-                    vertices[tri[2] as usize],
-                    Vec3::zeroed(),
-                ]
+            .map(|tri| Triangle {
+                p0: (vertices[tri[0] as usize], 0.0).into(),
+                p1: (vertices[tri[1] as usize], 0.0).into(),
+                p2: (vertices[tri[2] as usize], 0.0).into(),
             })
             .collect();
 
@@ -143,7 +154,7 @@ impl Bvh {
         self.centroids = self
             .triangles
             .iter()
-            .map(|t| (t[0] + t[1] + t[2]) / 3f32)
+            .map(|t| ((t.p0 + t.p1 + t.p2) / 3f32).xyz())
             .collect();
 
         self.bvh_nodes[0].left_first = 0;
@@ -269,10 +280,8 @@ impl Bvh {
 
     // return min and max point
     fn calculate_bounds(&self, first: u32, amount: u32, centroids: bool) -> Aabb {
-        let mut max_point = vec3(
-            -100000000f32, -100000000f32, -100000000f32);
-        let mut min_point =vec3(
-            100000000f32, 100000000f32, 100000000f32);
+        let mut max_point = vec3(-100000000f32, -100000000f32, -100000000f32);
+        let mut min_point = vec3(100000000f32, 100000000f32, 100000000f32);
         for i in first..(first + amount) {
             let i = i as usize;
             if centroids {
@@ -280,11 +289,15 @@ impl Bvh {
                 max_point = max_point.max(vertex);
                 min_point = min_point.min(vertex);
             } else {
-                for j in 0..3_usize {
-                    let vertex = self.triangles[self.indices[i] as usize][j];
-                    max_point = max_point.max(vertex);
-                    min_point = min_point.min(vertex);
-                }
+                let vertex = self.triangles[self.indices[i] as usize].p0.xyz();
+                max_point = max_point.max(vertex);
+                min_point = min_point.min(vertex);
+                let vertex = self.triangles[self.indices[i] as usize].p1.xyz();
+                max_point = max_point.max(vertex);
+                min_point = min_point.min(vertex);
+                let vertex = self.triangles[self.indices[i] as usize].p2.xyz();
+                max_point = max_point.max(vertex);
+                min_point = min_point.min(vertex);
             }
         }
         Aabb {

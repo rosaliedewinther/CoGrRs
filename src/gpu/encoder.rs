@@ -8,13 +8,13 @@ use egui::Ui;
 
 use crate::gpu::resources::init_texture_with_data;
 use crate::gpu::Pipeline;
-use bytemuck::{Pod, AnyBitPattern, NoUninit};
+use bytemuck::{AnyBitPattern, NoUninit, Pod};
 use egui_wgpu::renderer::ScreenDescriptor;
 use tracing::info;
 use wgpu::util::DeviceExt;
 use wgpu::IndexFormat::Uint16;
 use wgpu::{
-    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView, TextureFormat,
+    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView, TextureFormat
 };
 use wgpu_profiler::{wgpu_profiler, GpuTimerScopeResult};
 
@@ -49,7 +49,7 @@ impl<'a> DerefMut for DrawEncoder<'a> {
 }
 
 impl<'a> DrawEncoder<'a> {
-    pub fn to_screen(&mut self, to_screen_texture: &ResourceHandle, texture_format: TextureFormat) -> Result<()> {
+    pub fn to_screen(&mut self, to_screen_texture: &ResourceHandle) -> Result<()> {
         puffin::profile_function!();
         let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
         let ctx = &mut encoder.gpu_context;
@@ -89,14 +89,14 @@ impl<'a> DrawEncoder<'a> {
                     ctx.last_to_screen_pipeline = Some(ToScreenPipeline::new(
                         &ctx.device,
                         texture_view,
-                        texture_format,
+                        TextureFormat::Bgra8UnormSrgb,
                     ));
                 }
 
                 // run pipeline
                 let pipeline = ctx.last_to_screen_pipeline.as_ref().unwrap();
                 render_pass.set_pipeline(&pipeline.pipeline); // 2.
-                render_pass.set_bind_group(0, &pipeline.bindgroup, &[]);
+                render_pass.set_bind_group(0, &pipeline.bind_group, &[]);
                 render_pass.set_index_buffer(pipeline.index_buffer.slice(..), Uint16);
                 render_pass.draw_indexed(0..pipeline.num_indices, 0, 0..1);
             }
