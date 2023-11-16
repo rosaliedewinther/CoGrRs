@@ -14,7 +14,7 @@ use tracing::info;
 use wgpu::util::DeviceExt;
 use wgpu::IndexFormat::Uint16;
 use wgpu::{
-    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView, TextureFormat
+    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView
 };
 use wgpu_profiler::{wgpu_profiler, GpuTimerScopeResult};
 

@@ -14,7 +14,6 @@ bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
 inline-spirv = { version = "0.1", default-features = false, features = [
     "hlsl",
 ] }
-#log = { version = "0.4", default-features = false }
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = "0.3"
 spirv-reflect = "0.2"
@@ -31,3 +30,6 @@ egui-winit = "0.23"
 
 [profile.dev]
 opt-level = 3
+
+[dev-dependencies]
+dolly = "0.4"

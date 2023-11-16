@@ -9,3 +9,4 @@ pub use puffin;
 pub use tracing;
 pub use wgpu::TextureFormat;
 pub use window::*;
+pub use winit::event::{VirtualKeyCode, MouseButton};

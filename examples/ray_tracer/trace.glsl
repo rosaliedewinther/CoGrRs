@@ -24,7 +24,7 @@ struct Triangle{
 };
 
 layout(rgba8) uniform image2D to_draw_texture;
-layout(std430) buffer triangles_block { Triangle triangles[]; };
+buffer triangles_block { Triangle triangles[]; };
 buffer bvh_nodes_block { BVHNode bvh_nodes[]; };
 buffer gpu_data
 {

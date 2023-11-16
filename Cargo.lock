@@ -326,6 +326,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytemuck",
+ "dolly",
  "egui",
  "egui-wgpu",
  "egui-winit",
@@ -441,6 +442,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330c60081dcc4c72131f8eb70510f1ac07223e5d4163db481a04a0befcffa412"
 dependencies = [
  "libloading 0.8.1",
+]
+
+[[package]]
+name = "dolly"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e665b3cde013704f0209ede562f00846dcb1fe269c2ec2f9b15fa2687d86685f"
+dependencies = [
+ "glam",
 ]
 
 [[package]]

@@ -19,6 +19,7 @@ impl Shader {
         let mut options = shaderc::CompileOptions::new().unwrap();
         options.set_forced_version_profile(460, shaderc::GlslProfile::None);
         options.set_auto_bind_uniforms(true);
+        options.set_warnings_as_errors();
         options.set_optimization_level(shaderc::OptimizationLevel::Performance);
         let spirv = match gpu_context.shader_compiler.compile_into_spirv(
             &code,
