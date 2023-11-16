@@ -117,7 +117,7 @@ impl ToScreenPipeline {
                 entry_point: "main",
                 targets: &[Some(ColorTargetState {
                     // 4.
-                    format: texture_format,
+                    format: TextureFormat::Bgra8UnormSrgb,
                     blend: Some(BlendState::REPLACE),
                     write_mask: ColorWrites::ALL,
                 })],

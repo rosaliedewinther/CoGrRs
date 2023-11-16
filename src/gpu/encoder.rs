@@ -69,7 +69,7 @@ impl<'a> DrawEncoder<'a> {
 
                 let mut render_pass =
                     command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("Render Pass"),
+                        label: Some("To screen render pass"),
                         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                             view: &self.texture_view,
                             resolve_target: None,
@@ -89,7 +89,7 @@ impl<'a> DrawEncoder<'a> {
                     ctx.last_to_screen_pipeline = Some(ToScreenPipeline::new(
                         &ctx.device,
                         texture_view,
-                        TextureFormat::Bgra8UnormSrgb,
+                        texture.format,
                     ));
                 }
 
