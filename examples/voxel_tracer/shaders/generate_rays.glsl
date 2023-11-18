@@ -1,9 +1,9 @@
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(rgba32f) uniform image2D ray_direction_out;
-buffer camera
+buffer camera_data
 {
     vec3 position;
-    float aperture;
+    float jitter;
     vec3 direction;
     float focal_length;
     vec3 direction_side;
@@ -52,13 +52,15 @@ void main()
     uint random_state = wang_hash((1 + x + y * screen_width) * random_seed);
 
     vec3 sensor_center = position - direction * focal_length;
-    float horizontal_shift = ((float(x)/screen_width)-0.5) * sensor_height * (screen_width/screen_height);
-    float vertical_shift = ((float(y)/screen_height)-0.5) * sensor_height;
+    float x_jittered = float(x);// + random_float(random_state) * screen_width *jitter - screen_width*0.5;
+    float y_jittered = float(y);// + random_float(random_state) * screen_height*jitter  - screen_height*0.5;
+    float horizontal_shift = ((x_jittered/screen_width)-0.5) * sensor_height * (float(screen_width)/screen_height);
+    float vertical_shift = ((y_jittered/screen_height)-0.5) * sensor_height;
     vec3 position_on_sensor = sensor_center + to_world_space(vec2(horizontal_shift, vertical_shift));
 
-    //vec2 pinhole_offset = random_point_circle(random_state) * (focal_length/aperture); 
+    //vec2 pinhole_offset = random_point_circle(random_state) * (focal_length/jitter); 
     vec3 pinhole_passthrough_position = position;// + to_world_space(pinhole_offset);
 
-    vec3 ray_direction = pinhole_passthrough_position - position_on_sensor;
+    vec3 ray_direction = normalize(pinhole_passthrough_position - position_on_sensor);
     imageStore(ray_direction_out, pos, vec4(ray_direction, 0));
 }

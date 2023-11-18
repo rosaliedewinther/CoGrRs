@@ -1,3 +1,7 @@
+use std::time::SystemTime;
+
+use anyhow::Result;
+
 use spirv_reflect::types::{ReflectDescriptorType, ReflectDimension, ReflectImageFormat};
 use wgpu::{
     util::make_spirv, BindGroup, BindGroupLayout, ComputePipeline, ShaderModuleDescriptor,
@@ -11,6 +15,8 @@ use super::CoGr;
 #[derive(Debug)]
 pub struct Pipeline {
     pub pipeline_name: String,
+    pub source: String,
+    pub last_update: SystemTime,
     pub pipeline: ComputePipeline,
     pub bind_group_layout: BindGroupLayout,
     pub last_bind_group_hash: u64,
@@ -76,9 +82,9 @@ fn map_texture_format(format: &ReflectImageFormat) -> wgpu::TextureFormat {
 }
 
 impl Pipeline {
-    pub(crate) fn new(gpu_context: &CoGr, shader_file: &str) -> Self {
-        let shader = Shader::compile_shader(gpu_context, shader_file).unwrap();
-
+    pub(crate) fn new(gpu_context: &CoGr, shader_file: &str) -> Result<Self> {
+        let shader = Shader::compile_shader(gpu_context, shader_file)?;
+        println!("compiled shader");
         let cs_module = gpu_context
             .device
             .create_shader_module(ShaderModuleDescriptor {
@@ -137,12 +143,26 @@ impl Pipeline {
                     entry_point: "main",
                 });
 
-        Pipeline {
+        Ok(Pipeline {
             pipeline_name: shader_file.to_string(),
             pipeline,
+            source: shader_file.to_string(),
+            last_update: std::fs::metadata(shader_file).unwrap().modified().unwrap(),
             bind_group_layout,
             last_bind_group_hash: 0,
             last_bind_group: None,
+        })
+    }
+    pub fn check_hot_reload(&mut self, gpu_context: &CoGr){
+        if self.last_update < std::fs::metadata(&self.source).unwrap().modified().unwrap(){
+            match Pipeline::new(gpu_context, &self.source){
+                Ok(new_pipe) => *self = new_pipe,
+                Err(err) => {
+                    println!("{}", err);
+                    self.last_update = std::fs::metadata(&self.source).unwrap().modified().unwrap();
+                },
+            }
+
         }
     }
 }

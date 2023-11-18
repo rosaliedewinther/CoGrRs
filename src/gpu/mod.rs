@@ -229,6 +229,6 @@ impl CoGr {
         let _ = self.state.on_event(&self.context, event);
     }
     pub fn pipeline(&mut self, shader_file: &str) -> Result<Pipeline> {
-        Ok(Pipeline::new(self, shader_file))
+        Pipeline::new(self, shader_file)
     }
 }

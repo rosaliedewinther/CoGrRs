@@ -21,19 +21,14 @@ impl Shader {
         options.set_auto_bind_uniforms(true);
         options.set_warnings_as_errors();
         options.set_optimization_level(shaderc::OptimizationLevel::Performance);
-        let spirv = match gpu_context.shader_compiler.compile_into_spirv(
+        let spirv = gpu_context.shader_compiler.compile_into_spirv(
             &code,
             shaderc::ShaderKind::Compute,
             shader_file,
             "main",
             Some(&options),
-        ) {
-            Ok(result) => result.as_binary_u8().to_vec(),
-            Err(error) => {
-                println!("{}", error);
-                panic!("compilation error");
-            }
-        };
+        )?;
+        let spirv = spirv.as_binary_u8().to_vec();
 
         let reflector =
             ShaderModule::load_u8_data(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;

@@ -74,7 +74,7 @@ impl<'a> DrawEncoder<'a> {
                             view: &self.texture_view,
                             resolve_target: None,
                             ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                load: wgpu::LoadOp::Load,
                                 store: true,
                             },
                         })],
@@ -241,6 +241,7 @@ impl Encoder<'_> {
         resources: &[&ResourceHandle],
     ) -> Result<()> {
         puffin::profile_function!();
+        pipeline.check_hot_reload(&self.gpu_context);
         let encoder = self
             .command_encoder
             .as_mut()
