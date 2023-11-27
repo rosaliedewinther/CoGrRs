@@ -92,7 +92,7 @@ pub struct CoGr {
 impl CoGr {
     pub fn new(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
         let instance = wgpu::Instance::new(InstanceDescriptor {
-            backends: Backends::VULKAN,
+            backends: Backends::METAL,
             ..Default::default()
         });
         let surface = unsafe { instance.create_surface(window.as_ref())? };

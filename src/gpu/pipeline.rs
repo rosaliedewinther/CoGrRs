@@ -1,11 +1,11 @@
-use std::time::SystemTime;
+use std::{borrow::Cow, time::SystemTime};
 
 use anyhow::Result;
 
 use spirv_reflect::types::{ReflectDescriptorType, ReflectDimension, ReflectImageFormat};
 use wgpu::{
-    util::make_spirv, BindGroup, BindGroupLayout, ComputePipeline, ShaderModuleDescriptor,
-    TextureFormat, TextureViewDimension,
+    BindGroup, BindGroupLayout, ComputePipeline, ShaderModuleDescriptor, TextureFormat,
+    TextureViewDimension,
 };
 
 use crate::gpu::shader::Shader;
@@ -84,13 +84,8 @@ fn map_texture_format(format: &ReflectImageFormat) -> wgpu::TextureFormat {
 impl Pipeline {
     pub(crate) fn new(gpu_context: &CoGr, shader_file: &str) -> Result<Self> {
         let shader = Shader::compile_shader(gpu_context, shader_file)?;
+        let code = std::fs::read_to_string(shader_file)?;
         println!("compiled shader");
-        let cs_module = gpu_context
-            .device
-            .create_shader_module(ShaderModuleDescriptor {
-                label: Some(shader_file),
-                source: make_spirv(&shader.shader),
-            });
 
         let bind_group_layout_entries = shader
             .bindings
@@ -153,16 +148,15 @@ impl Pipeline {
             last_bind_group: None,
         })
     }
-    pub fn check_hot_reload(&mut self, gpu_context: &CoGr){
-        if self.last_update < std::fs::metadata(&self.source).unwrap().modified().unwrap(){
-            match Pipeline::new(gpu_context, &self.source){
+    pub fn check_hot_reload(&mut self, gpu_context: &CoGr) {
+        if self.last_update < std::fs::metadata(&self.source).unwrap().modified().unwrap() {
+            match Pipeline::new(gpu_context, &self.source) {
                 Ok(new_pipe) => *self = new_pipe,
                 Err(err) => {
                     println!("{}", err);
                     self.last_update = std::fs::metadata(&self.source).unwrap().modified().unwrap();
-                },
+                }
             }
-
         }
     }
 }

@@ -1,37 +1,34 @@
+use std::borrow::Cow;
+
 use anyhow::{anyhow, Result};
-use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
+use naga::front::wgsl;
+use wgpu::{BindingType, ShaderModule, ShaderModuleDescriptor};
 
 use crate::CoGr;
 
 pub struct Shader {
     pub file: String,
-    pub shader: Vec<u8>,
+    pub shader: String,
     pub cg_x: u32, //compute group size x
     pub cg_y: u32,
     pub cg_z: u32,
-    pub bindings: Vec<ReflectDescriptorBinding>,
+    pub shader_module: ShaderModule,
+    pub bindings: Vec<BindingType>,
 }
 
 impl Shader {
     pub fn compile_shader(gpu_context: &CoGr, shader_file: &str) -> Result<Shader> {
         let code = std::fs::read_to_string(shader_file)?;
 
-        let mut options = shaderc::CompileOptions::new().unwrap();
-        options.set_forced_version_profile(460, shaderc::GlslProfile::None);
-        options.set_auto_bind_uniforms(true);
-        options.set_warnings_as_errors();
-        options.set_optimization_level(shaderc::OptimizationLevel::Performance);
-        let spirv = gpu_context.shader_compiler.compile_into_spirv(
-            &code,
-            shaderc::ShaderKind::Compute,
-            shader_file,
-            "main",
-            Some(&options),
-        )?;
-        let spirv = spirv.as_binary_u8().to_vec();
+        let shader_module = wgsl::parse_str(&code)?;
+        let bindings = shader_module.global_variables.iter().map(|var|var.)
 
-        let reflector =
-            ShaderModule::load_u8_data(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;
+        let shader_module = gpu_context
+            .device
+            .create_shader_module(ShaderModuleDescriptor {
+                label: Some(shader_file),
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&code)),
+            });
 
         let bindings = reflector
             .enumerate_descriptor_bindings(None)
@@ -39,10 +36,11 @@ impl Shader {
 
         Ok(Shader {
             file: shader_file.to_string(),
-            shader: spirv,
+            shader: code,
             cg_x: 0,
             cg_y: 0,
             cg_z: 0,
+            shader_module,
             bindings,
         })
     }

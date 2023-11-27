@@ -7,18 +7,14 @@ edition = "2021"
 
 [dependencies]
 winit = { version = "0.28", default-features = false }
-wgpu = { version = "0.17", default-features = false, features = ["spirv"] }
+wgpu = { version = "0.17", default-features = false }
 wgpu-profiler = "0.14"
+naga = { version = "0.14", features = ["wgsl-in"] }
 pollster = { version = "0.3", default-features = false }
 bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
-inline-spirv = { version = "0.1", default-features = false, features = [
-    "hlsl",
-] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = "0.3"
-spirv-reflect = "0.2"
 anyhow = "1.0"
-shaderc = "0.8"
 
 glam = { version = "0.24", features = ["bytemuck"] }
 puffin = "0.17"
