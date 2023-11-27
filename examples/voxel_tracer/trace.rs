@@ -38,7 +38,7 @@ impl Trace{
     pub fn new(gpu: &mut CoGr) -> Self {
         let trace_result = gpu.texture("trace_result", TextureRes::FullRes, TextureFormat::Rgba16Float);
         let trace_data = gpu.buffer("trace_data", 1, size_of::<TraceGpu>());
-        let trace_rays = gpu.pipeline("examples/voxel_tracer/shaders/trace.glsl").unwrap();
+        let trace_rays = gpu.pipeline("examples/voxel_tracer/shaders/trace2.glsl").unwrap();
         Self {
             trace_result,
             trace_data,

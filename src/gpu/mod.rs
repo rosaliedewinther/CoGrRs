@@ -1,7 +1,6 @@
 use egui::epaint::Shadow;
 use egui::Style;
 use egui::Visuals;
-use shaderc::Compiler;
 use tracing::info;
 use wgpu::Backends;
 use wgpu::Features;

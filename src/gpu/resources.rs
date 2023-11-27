@@ -5,13 +5,8 @@ use std::{
     rc::Rc,
 };
 
-use anyhow::{anyhow, Result};
 use std::fmt::Debug;
 use tracing::info;
-use wgpu::{
-    util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages,
-    TextureViewDescriptor, TextureViewDimension,
-};
 
 #[derive(Debug)]
 pub enum TextureRes {
@@ -86,20 +81,16 @@ fn match_buffer_size(
 #[derive(Debug)]
 pub struct Texture {
     pub name: String,
-    pub resolution: TextureRes,
-    pub format: wgpu::TextureFormat,
-    pub texture: Option<wgpu::Texture>,
-    pub texture_view: Option<wgpu::TextureView>,
+    pub texture: wgpu::Texture,
+    pub texture_view: wgpu::TextureView,
 }
 
 impl Texture {
-    fn new(name: String, resolution: TextureRes, format: wgpu::TextureFormat) -> Self {
+    fn new(name: String, texture: wgpu::Texture, texture_view: wgpu::TextureView) -> Self {
         Self {
             name,
-            resolution,
-            format,
-            texture: None,
-            texture_view: None,
+            texture,
+            texture_view,
         }
     }
 }
@@ -107,18 +98,14 @@ impl Texture {
 #[derive(Debug)]
 pub struct Buffer {
     pub name: String,
-    pub elements: BufferSize,
-    pub element_size: usize,
-    pub buffer: Option<wgpu::Buffer>,
+    pub buffer: wgpu::Buffer,
 }
 
 impl Buffer {
-    pub fn new(name: String, elements: BufferSize, element_size: usize) -> Self {
+    pub fn new(name: String, buffer: wgpu::Buffer) -> Self {
         Self {
             name,
-            elements,
-            element_size,
-            buffer: None,
+            buffer,
         }
     }
 }
@@ -193,15 +180,15 @@ impl ResourcePool {
     pub(crate) fn texture(
         &mut self,
         name: String,
-        resolution: TextureRes,
-        format: wgpu::TextureFormat,
+        texture: wgpu::Texture,
+        texture_view: wgpu::TextureView,
     ) -> ResourceHandle {
         puffin::profile_function!();
         info!(
-            "creating texture {} with resolution {:?} and format {:?}",
-            name, resolution, format
+            "creating texture {} with {:?} and view {:?}",
+            name, texture, texture_view
         );
-        let texture = Texture::new(name, resolution, format);
+        let texture = Texture::new(name, texture, texture_view);
         let handle = ResourceHandle::new_t(self.textures.len());
         self.textures.push(texture);
         self.texture_handles.push(handle.clone());
@@ -211,15 +198,14 @@ impl ResourcePool {
     pub(crate) fn buffer(
         &mut self,
         name: String,
-        elements: BufferSize,
-        element_size: usize,
+        buffer: wgpu::Buffer,
     ) -> ResourceHandle {
         puffin::profile_function!();
         info!(
-            "creating buffer {} with {:?} elements of size {} each",
-            name, elements, element_size
+            "creating buffer {} with {:?}",
+            name, buffer
         );
-        let buffer = Buffer::new(name, elements, element_size);
+        let buffer = Buffer::new(name, buffer);
         let handle = ResourceHandle::new_b(self.buffers.len());
         self.buffers.push(buffer);
         self.buffer_handles.push(handle.clone());
@@ -276,40 +262,9 @@ impl ResourcePool {
     ) {
         puffin::profile_function!();
         self.clean_up_resources();
-        if self.recreate_resources {
-            self.textures.iter_mut().for_each(|texture| {
-                texture.texture = None;
-                texture.texture_view = None;
-            });
-            self.recreate_resources = false;
-        }
-
-        self.textures.iter_mut().for_each(|texture| {
-            if texture.texture.is_none() {
-                let (new_texture, new_texture_view) = init_texture(
-                    device,
-                    &texture.name,
-                    match_resolution(config, &texture.resolution),
-                    texture.format,
-                )
-                .unwrap();
-                texture.texture = Some(new_texture);
-                texture.texture_view = Some(new_texture_view);
-            }
-        });
-
-        self.buffers.iter_mut().for_each(|buffer| {
-            if buffer.buffer.is_none() {
-                buffer.buffer = Some(init_storage_buffer(
-                    device,
-                    &buffer.name,
-                    match_buffer_size(config, &buffer.elements, buffer.element_size),
-                ));
-            }
-        });
     }
 }
-
+/*
 pub(crate) fn init_texture(
     device: &wgpu::Device,
     texture_name: &str,
@@ -439,4 +394,4 @@ pub(crate) fn init_storage_buffer(
             | wgpu::BufferUsages::STORAGE,
         mapped_at_creation: false,
     })
-}
+}*/

@@ -4,7 +4,7 @@ use wgpu::{
     BindGroupLayoutEntry, BindingResource, BindingType, BlendState, Buffer, BufferUsages,
     ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline,
-    RenderPipelineDescriptor, ShaderModuleDescriptorSpirV, ShaderStages, StorageTextureAccess,
+    RenderPipelineDescriptor, ShaderStages, StorageTextureAccess,
     TextureFormat, TextureView, TextureViewDimension, VertexState,
 };
 
@@ -58,44 +58,10 @@ impl ToScreenPipeline {
         });
 
         // init compute pass
-        let f_shader = unsafe {
-            device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
-                label: Some("../../shaders/to_screen.frag"),
-                source: std::borrow::Cow::Borrowed(inline_spirv!(
-                    "#version 460
+        let f_shader = device.create_shader_module(wgpu::include_wgsl!("to_screen.wgsl"));
 
-                    layout(location=0) in vec2 v_tex_coords;
-                    layout(location=0) out vec4 f_color;
-                    
-                    layout(rgba8, binding = 0) readonly uniform image2D to_draw;
-                    
-                    void main() {
-                        vec2 size = imageSize(to_draw);
-                        f_color = vec4(imageLoad(to_draw, ivec2(v_tex_coords*size)));
-                    }",
-                    frag,
-                    vulkan1_2
-                )),
-            })
-        };
-
-        let v_shader = unsafe {
-            device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
-                label: Some("to_screen_vert"),
-                source: std::borrow::Cow::Borrowed(inline_spirv!(
-                    "#version 460
-                    layout(location=0) out vec2 v_tex_coords;
-                    void main() {
-                        vec2 uv = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
-                        gl_Position = vec4(uv * vec2(2, -2) + vec2(-1, 1), 0, 1);
-                        v_tex_coords = uv;
-                    }
-                    ",
-                    vert,
-                    vulkan1_2
-                )),
-            })
-        };
+        let v_shader = device.create_shader_module(wgpu::include_wgsl!("to_screen.wgsl"));
+        
         let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
@@ -107,13 +73,13 @@ impl ToScreenPipeline {
             layout: Some(&render_pipeline_layout),
             vertex: VertexState {
                 module: &v_shader,
-                entry_point: "main", // 1.
+                entry_point: "vs_main", // 1.
                 buffers: &[],        // 2.
             },
             fragment: Some(FragmentState {
                 // 3.
                 module: &f_shader,
-                entry_point: "main",
+                entry_point: "fs_main",
                 targets: &[Some(ColorTargetState {
                     // 4.
                     format: TextureFormat::Bgra8UnormSrgb,

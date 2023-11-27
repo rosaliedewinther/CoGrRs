@@ -2,13 +2,13 @@ use std::{borrow::Cow, time::SystemTime};
 
 use anyhow::Result;
 
-use spirv_reflect::types::{ReflectDescriptorType, ReflectDimension, ReflectImageFormat};
+use naga::ShaderStage;
 use wgpu::{
     BindGroup, BindGroupLayout, ComputePipeline, ShaderModuleDescriptor, TextureFormat,
-    TextureViewDimension,
+    TextureViewDimension, BindGroupLayoutEntry, ShaderStages,
 };
 
-use crate::gpu::shader::Shader;
+use crate::{gpu::shader::Shader, ResourceHandle};
 
 use super::CoGr;
 
@@ -23,71 +23,25 @@ pub struct Pipeline {
     pub last_bind_group: Option<BindGroup>,
 }
 
-fn map_texture_dimension(dimension: &ReflectDimension) -> TextureViewDimension {
-    match dimension {
-        ReflectDimension::Undefined => unimplemented!(),
-        ReflectDimension::Type1d => TextureViewDimension::D1,
-        ReflectDimension::Type2d => TextureViewDimension::D2,
-        ReflectDimension::Type3d => TextureViewDimension::D3,
-        ReflectDimension::Cube => TextureViewDimension::Cube,
-        ReflectDimension::Rect => unimplemented!(),
-        ReflectDimension::Buffer => unimplemented!(),
-        ReflectDimension::SubPassData => unimplemented!(),
-    }
-}
-
-fn map_texture_format(format: &ReflectImageFormat) -> wgpu::TextureFormat {
-    match format {
-        ReflectImageFormat::Undefined => unimplemented!(),
-        ReflectImageFormat::RGBA32_FLOAT => TextureFormat::Rgba32Float,
-        ReflectImageFormat::RGBA16_FLOAT => TextureFormat::Rgba16Float,
-        ReflectImageFormat::R32_FLOAT => TextureFormat::R32Float,
-        ReflectImageFormat::RGBA8 => TextureFormat::Rgba8Unorm,
-        ReflectImageFormat::RGBA8_SNORM => TextureFormat::Rgba8Snorm,
-        ReflectImageFormat::RG32_FLOAT => TextureFormat::Rg32Float,
-        ReflectImageFormat::RG16_FLOAT => TextureFormat::Rg16Float,
-        ReflectImageFormat::R11G11B10_FLOAT => TextureFormat::Rg11b10Float,
-        ReflectImageFormat::R16_FLOAT => TextureFormat::R16Float,
-        ReflectImageFormat::RGBA16 => TextureFormat::Rgba16Unorm,
-        ReflectImageFormat::RGB10A2 => TextureFormat::Rgb10a2Unorm,
-        ReflectImageFormat::RG16 => TextureFormat::Rg16Snorm,
-        ReflectImageFormat::RG8 => TextureFormat::Rg8Unorm,
-        ReflectImageFormat::R16 => TextureFormat::R16Unorm,
-        ReflectImageFormat::R8 => TextureFormat::R8Unorm,
-        ReflectImageFormat::RGBA16_SNORM => TextureFormat::Rgba16Snorm,
-        ReflectImageFormat::RG16_SNORM => TextureFormat::Rg16Snorm,
-        ReflectImageFormat::RG8_SNORM => TextureFormat::Rg8Snorm,
-        ReflectImageFormat::R16_SNORM => TextureFormat::R16Snorm,
-        ReflectImageFormat::R8_SNORM => TextureFormat::R8Snorm,
-        ReflectImageFormat::RGBA32_INT => TextureFormat::Rgba32Sint,
-        ReflectImageFormat::RGBA16_INT => TextureFormat::Rgba16Sint,
-        ReflectImageFormat::RGBA8_INT => TextureFormat::Rgba8Sint,
-        ReflectImageFormat::R32_INT => TextureFormat::R32Sint,
-        ReflectImageFormat::RG32_INT => TextureFormat::Rg32Sint,
-        ReflectImageFormat::RG16_INT => TextureFormat::Rg16Sint,
-        ReflectImageFormat::RG8_INT => TextureFormat::Rg8Sint,
-        ReflectImageFormat::R16_INT => TextureFormat::R16Sint,
-        ReflectImageFormat::R8_INT => TextureFormat::R8Sint,
-        ReflectImageFormat::RGBA32_UINT => TextureFormat::Rgba32Uint,
-        ReflectImageFormat::RGBA16_UINT => TextureFormat::Rgba16Uint,
-        ReflectImageFormat::RGBA8_UINT => TextureFormat::Rgba8Uint,
-        ReflectImageFormat::R32_UINT => TextureFormat::R32Uint,
-        ReflectImageFormat::RG32_UINT => TextureFormat::Rg32Uint,
-        ReflectImageFormat::RG16_UINT => TextureFormat::Rg16Uint,
-        ReflectImageFormat::RG8_UINT => TextureFormat::Rg8Uint,
-        ReflectImageFormat::R16_UINT => TextureFormat::R16Uint,
-        ReflectImageFormat::R8_UINT => TextureFormat::R8Uint,
-        ReflectImageFormat::RGB10A2_UINT => unimplemented!(),
-    }
-}
-
 impl Pipeline {
-    pub(crate) fn new(gpu_context: &CoGr, shader_file: &str) -> Result<Self> {
+    pub(crate) fn new(gpu_context: &CoGr, shader_file: &str, entry_point: &str, bindings: &[&ResourceHandle]) -> Result<Self> {
         let shader = Shader::compile_shader(gpu_context, shader_file)?;
         let code = std::fs::read_to_string(shader_file)?;
         println!("compiled shader");
 
-        let bind_group_layout_entries = shader
+        let bind_group_layout_entries: Vec<BindGroupLayoutEntry> = bindings.iter().enumerate().map(|(index, val)|match val{
+            ResourceHandle::Texture(t) => {
+                let texture = gpu_context.resource_pool.grab_texture(t);
+                BindGroupLayoutEntry{
+                    visibility: ShaderStages::all(),
+                    ty: wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::ReadWrite, format: texture.format, view_dimension:texture. },
+                    count: None,
+                    binding: index,
+                }
+                gpu_context.resource_pool.grab_texture(t).
+            },
+            ResourceHandle::Buffer(b) => todo!(),
+        }) 
             .bindings
             .iter()
             .enumerate()
