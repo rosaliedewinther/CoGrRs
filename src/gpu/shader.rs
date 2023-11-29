@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use anyhow::Result;
-use naga::front::wgsl;
 use wgpu::{ShaderModule, ShaderModuleDescriptor};
 
 use crate::CoGr;
@@ -15,7 +14,6 @@ pub struct Shader {
 impl Shader {
     pub fn compile_shader(gpu_context: &CoGr, shader_file: &str) -> Result<Shader> {
         let code = std::fs::read_to_string(shader_file)?;
-        let module = wgsl::parse_str(&code)?;
 
         let shader_module = gpu_context
             .device

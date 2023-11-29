@@ -4,8 +4,8 @@ use wgpu::{
     BindGroupLayoutEntry, BindingResource, BindingType, BlendState, Buffer, BufferUsages,
     ColorTargetState, ColorWrites, Device, FragmentState, FrontFace, MultisampleState,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline,
-    RenderPipelineDescriptor, ShaderStages, StorageTextureAccess,
-    TextureFormat, TextureView, TextureViewDimension, VertexState,
+    RenderPipelineDescriptor, ShaderStages, StorageTextureAccess, TextureFormat, TextureView,
+    TextureViewDimension, VertexState,
 };
 
 #[derive(Debug)]
@@ -61,7 +61,7 @@ impl ToScreenPipeline {
         let f_shader = device.create_shader_module(wgpu::include_wgsl!("to_screen.wgsl"));
 
         let v_shader = device.create_shader_module(wgpu::include_wgsl!("to_screen.wgsl"));
-        
+
         let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
@@ -74,7 +74,7 @@ impl ToScreenPipeline {
             vertex: VertexState {
                 module: &v_shader,
                 entry_point: "vs_main", // 1.
-                buffers: &[],        // 2.
+                buffers: &[],           // 2.
             },
             fragment: Some(FragmentState {
                 // 3.

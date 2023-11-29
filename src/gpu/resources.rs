@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     ops::SubAssign,
     rc::Rc,
@@ -7,6 +8,7 @@ use std::{
 
 use std::fmt::Debug;
 use tracing::info;
+use wgpu::{TextureFormat, TextureViewDimension};
 
 #[derive(Debug)]
 pub enum TextureRes {
@@ -81,14 +83,23 @@ fn match_buffer_size(
 #[derive(Debug)]
 pub struct Texture {
     pub name: String,
+    pub format: TextureFormat,
+    pub view_dims: TextureViewDimension,
     pub texture: wgpu::Texture,
     pub texture_view: wgpu::TextureView,
 }
 
 impl Texture {
-    fn new(name: String, texture: wgpu::Texture, texture_view: wgpu::TextureView) -> Self {
+    fn new(
+        name: String,
+        view_dims: TextureViewDimension,
+        texture: wgpu::Texture,
+        texture_view: wgpu::TextureView,
+    ) -> Self {
         Self {
             name,
+            format: texture.format(),
+            view_dims: view_dims,
             texture,
             texture_view,
         }
@@ -103,10 +114,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(name: String, buffer: wgpu::Buffer) -> Self {
-        Self {
-            name,
-            buffer,
-        }
+        Self { name, buffer }
     }
 }
 
@@ -114,6 +122,14 @@ impl Buffer {
 pub enum ResourceHandle {
     Texture(Rc<RefCell<usize>>),
     Buffer(Rc<RefCell<usize>>),
+}
+
+pub fn hash_handles(handles: &[&ResourceHandle]) -> u64 {
+    let mut hasher = DefaultHasher::default();
+    for handle in handles {
+        handle.hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 impl ResourceHandle {
@@ -180,6 +196,7 @@ impl ResourcePool {
     pub(crate) fn texture(
         &mut self,
         name: String,
+        view_dims: TextureViewDimension,
         texture: wgpu::Texture,
         texture_view: wgpu::TextureView,
     ) -> ResourceHandle {
@@ -188,23 +205,16 @@ impl ResourcePool {
             "creating texture {} with {:?} and view {:?}",
             name, texture, texture_view
         );
-        let texture = Texture::new(name, texture, texture_view);
+        let texture = Texture::new(name, view_dims, texture, texture_view);
         let handle = ResourceHandle::new_t(self.textures.len());
         self.textures.push(texture);
         self.texture_handles.push(handle.clone());
         handle
     }
 
-    pub(crate) fn buffer(
-        &mut self,
-        name: String,
-        buffer: wgpu::Buffer,
-    ) -> ResourceHandle {
+    pub(crate) fn buffer(&mut self, name: String, buffer: wgpu::Buffer) -> ResourceHandle {
         puffin::profile_function!();
-        info!(
-            "creating buffer {} with {:?}",
-            name, buffer
-        );
+        info!("creating buffer {} with {:?}", name, buffer);
         let buffer = Buffer::new(name, buffer);
         let handle = ResourceHandle::new_b(self.buffers.len());
         self.buffers.push(buffer);

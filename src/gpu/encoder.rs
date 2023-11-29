@@ -6,7 +6,6 @@ use std::ops::{Deref, DerefMut};
 use anyhow::{Context, Result};
 use egui::Ui;
 
-use crate::gpu::resources::init_texture_with_data;
 use crate::gpu::Pipeline;
 use bytemuck::{AnyBitPattern, NoUninit, Pod};
 use egui_wgpu::renderer::ScreenDescriptor;
@@ -14,7 +13,7 @@ use tracing::info;
 use wgpu::util::DeviceExt;
 use wgpu::IndexFormat::Uint16;
 use wgpu::{
-    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView
+    CommandEncoder, Extent3d, ImageCopyTexture, RenderPassDescriptor, SurfaceTexture, TextureView,
 };
 use wgpu_profiler::{wgpu_profiler, GpuTimerScopeResult};
 
@@ -88,7 +87,7 @@ impl<'a> DrawEncoder<'a> {
                     ctx.last_to_screen_texture_handle = Some(to_screen_texture.clone());
                     ctx.last_to_screen_pipeline = Some(ToScreenPipeline::new(
                         &ctx.device,
-                        texture_view,
+                        &texture.texture_view,
                         texture.format,
                     ));
                 }
@@ -241,7 +240,7 @@ impl Encoder<'_> {
         resources: &[&ResourceHandle],
     ) -> Result<()> {
         puffin::profile_function!();
-        pipeline.check_hot_reload(&self.gpu_context);
+        pipeline.check_hot_reload(&self.gpu_context, resources);
         let encoder = self
             .command_encoder
             .as_mut()
@@ -267,20 +266,17 @@ impl Encoder<'_> {
                             binding: i as u32,
                             resource: match val {
                                 ResourceHandle::Texture(_) => wgpu::BindingResource::TextureView(
-                                    self.gpu_context
+                                    &self
+                                        .gpu_context
                                         .resource_pool
                                         .grab_texture(val)
-                                        .texture_view
-                                        .as_ref()
-                                        .unwrap(),
+                                        .texture_view,
                                 ),
                                 ResourceHandle::Buffer(_) => self
                                     .gpu_context
                                     .resource_pool
                                     .grab_buffer(val)
                                     .buffer
-                                    .as_ref()
-                                    .unwrap()
                                     .as_entire_binding(),
                             },
                         })
@@ -306,7 +302,7 @@ impl Encoder<'_> {
 
         Ok(())
     }
-
+    /*
     pub fn set_buffer_data<T: AnyBitPattern + NoUninit, K: AsRef<[T]>>(
         &mut self,
         buffer: &ResourceHandle,
@@ -342,7 +338,7 @@ impl Encoder<'_> {
                 encoder.copy_buffer_to_buffer(
                     &uploading_buffer,
                     0,
-                    buffer.buffer.as_ref().unwrap(),
+                    &buffer.buffer,
                     0,
                     size_of_val(data) as u64,
                 );
@@ -391,8 +387,7 @@ impl Encoder<'_> {
                             );
                         }
 
-                        let (copy_texture, _) = init_texture_with_data(
-                            &self.gpu_context.device,
+                        let (copy_texture, _) = self.gpu_context.device.init_texture_with_data(
                             &self.gpu_context.queue,
                             "copy_texture",
                             (x, y, z),
@@ -407,7 +402,7 @@ impl Encoder<'_> {
                                 aspect: Default::default(),
                             },
                             ImageCopyTexture {
-                                texture: texture.texture.as_ref().unwrap(),
+                                texture: &texture.texture,
                                 mip_level: 0,
                                 origin: Default::default(),
                                 aspect: Default::default(),
@@ -425,7 +420,7 @@ impl Encoder<'_> {
         );
 
         Ok(())
-    }
+    }*/
 }
 
 impl<'a> Drop for Encoder<'a> {

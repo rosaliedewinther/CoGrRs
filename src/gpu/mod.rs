@@ -70,8 +70,6 @@ pub struct CoGr {
     pub config: wgpu::SurfaceConfiguration,
     window: Arc<Window>,
 
-    pub(crate) shader_compiler: Compiler,
-
     profiler: GpuProfiler,
     frame_timings: Vec<GpuTimerScopeResult>,
 
@@ -157,7 +155,6 @@ impl CoGr {
             config,
             window: window.clone(),
             resource_pool: ResourcePool::default(),
-            shader_compiler: Compiler::new().unwrap(),
 
             profiler,
             frame_timings: Vec::new(),
@@ -227,7 +224,12 @@ impl CoGr {
     pub fn handle_window_event(&mut self, event: &WindowEvent) {
         let _ = self.state.on_event(&self.context, event);
     }
-    pub fn pipeline(&mut self, shader_file: &str) -> Result<Pipeline> {
-        Pipeline::new(self, shader_file)
+    pub fn pipeline(
+        &mut self,
+        shader_file: &str,
+        entry_point: &str,
+        bindings: &[&ResourceHandle],
+    ) -> Result<Pipeline> {
+        Pipeline::new(self, shader_file, entry_point, bindings)
     }
 }
