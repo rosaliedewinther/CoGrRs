@@ -7,11 +7,11 @@ edition = "2021"
 
 [dependencies]
 winit = { version = "0.28", default-features = false }
-wgpu = { version = "0.17", default-features = false, features = ["spirv"] }
+wgpu = { version = "0.19", default-features = false, features = ["spirv"] }
 wgpu-profiler = "0.14"
-pollster = { version = "0.3", default-features = false }
+pollster = { version = "0.4", default-features = false }
 bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
-inline-spirv = { version = "0.1", default-features = false, features = [
+inline-spirv = { version = "0.2", default-features = false, features = [
     "hlsl",
 ] }
 #log = { version = "0.4", default-features = false }
@@ -21,15 +21,15 @@ spirv-reflect = "0.2"
 parking_lot = "0.12"
 anyhow = "1.0"
 shaderc = "0.8"
-itertools = "0.11"
+itertools = "0.13"
 
 glam = { version = "0.24", features = ["bytemuck"] }
 puffin = "0.17"
-puffin_egui = "0.23"
+puffin_egui = "0.24"
 
-egui = "0.23"
-egui-wgpu = "0.23"
-egui-winit = "0.23"
+egui = "0.24"
+egui-wgpu = "0.24"
+egui-winit = "0.24"
 
 [profile.release]
 debug = true
