@@ -172,6 +172,11 @@ impl Hash for ResourceHandle {
     }
 }
 
+pub enum Resource<'a> {
+    Texture(&'a Texture),
+    Buffer(&'a Buffer),
+}
+
 #[derive(Default)]
 pub(crate) struct ResourcePool {
     pub recreate_resources: bool,
@@ -182,11 +187,11 @@ pub(crate) struct ResourcePool {
 }
 
 impl ResourcePool {
-    pub fn grab_texture(&self, handle: &ResourceHandle) -> &Texture {
-        &self.textures[handle.get_index()]
-    }
-    pub fn grab_buffer(&self, handle: &ResourceHandle) -> &Buffer {
-        &self.buffers[handle.get_index()]
+    pub fn grab_resource<'a>(&self, handle: &ResourceHandle) -> Resource {
+        match handle {
+            ResourceHandle::Texture(_) => Resource::Texture(&self.textures[handle.get_index()]),
+            ResourceHandle::Buffer(_) => Resource::Buffer(&self.buffers[handle.get_index()]),
+        }
     }
 
     pub fn texture(

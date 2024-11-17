@@ -194,12 +194,20 @@ impl CoGr {
             ..Default::default()
         };
         let surface_texture_view = surface_texture.texture.create_view(&texture_view_config);
-        let encoder = self.get_encoder()?;
+        self.resource_pool
+            .prepare_resources(&self.device, &self.config);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+        encoder.push_debug_group("user_encoder");
 
         Ok(DrawEncoder {
-            encoder: Some(encoder),
             surface_texture: Some(surface_texture),
             texture_view: surface_texture_view,
+            command_encoder: Some(encoder),
+            gpu_context: self,
         })
     }
     pub fn get_encoder(&mut self) -> Result<Encoder> {

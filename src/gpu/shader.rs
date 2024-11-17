@@ -1,38 +1,26 @@
-use anyhow::{anyhow, Result};
-use bytemuck::cast_slice;
-use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
+use std::collections::BTreeMap;
 
+use anyhow::{anyhow, Context, Result};
+use bytemuck::cast_slice;
+use rspirv_reflect::{DescriptorInfo, PushConstantInfo};
+
+#[derive(Debug)]
 pub struct Shader {
     pub file: String,
-    pub shader: Vec<u8>,
-    pub push_constant_size: Option<u32>,
-    pub cg_x: u32, //compute group size x
-    pub cg_y: u32,
-    pub cg_z: u32,
-    pub bindings: Vec<ReflectDescriptorBinding>,
+    pub shader: Vec<u32>,
+    pub push_constant_range: Option<PushConstantInfo>,
+    pub compute_group_size: Option<(u32, u32, u32)>,
+    pub bindings: BTreeMap<u32, BTreeMap<u32, DescriptorInfo>>,
 }
 
 impl Shader {
     pub fn compile_shader(shader_file: &str) -> Result<Shader> {
         let code = std::fs::read_to_string(shader_file)?;
 
-        //let dxil = match compile_hlsl(shader_file, &code, "main", "cs_6_5", &[], &[]) {
-        //    Ok(data) => data,
-        //    Err(err) => panic!("{}", err),
-        //};
-        //let result = validate_dxil(&dxil);
-        //
-        //if let Some(err) = result.err() {
-        //    println!("validation failed: {}", err);
-        //}
-        //
-        //let spirv = compile_hlsl(shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
-        //
-
         let compiler = shaderc::Compiler::new().unwrap();
         let mut options = shaderc::CompileOptions::new().unwrap();
         options.set_source_language(shaderc::SourceLanguage::HLSL);
-        //options.add_macro_definition("EP", Some("main"));
+
         let spirv = compiler
             .compile_into_spirv(
                 &code,
@@ -46,45 +34,18 @@ impl Shader {
             .to_vec();
 
         let info = rspirv_reflect::Reflection::new_from_spirv(&cast_slice(spirv.as_slice()))
-            .expect("Invalid SPIR-V");
-        dbg!(info
-            .get_descriptor_sets()
-            .expect("Failed to extract descriptor bindings"));
-
-        let reflector = ShaderModule::load_u8_data(cast_slice(spirv.as_slice()))
-            .map_err(|val| anyhow!(val.to_string()))?;
-
-        let push_constant_blocks = reflector
-            .enumerate_push_constant_blocks(None)
-            .map_err(|val| anyhow!(val.to_string()))?;
-
-        let push_constant_size = match push_constant_blocks.len() {
-            0 => None,
-            1 => Some(push_constant_blocks[0].size),
-            n => panic!("{} push constant blocks found, only 1 or 0 are allowed", n),
-        };
-
-        //let compute_group_sizes = dbg!(reflector.enumerate_input_variables(None));
-        //dbg!(code);
-        //dbg!(shader_file);
-        //dbg!(reflector.enumerate_descriptor_sets(None));
-        //dbg!(reflector.enumerate_entry_points());
-        //dbg!(reflector.enumerate_output_variables(None));
-        //dbg!(reflector.enumerate_push_constant_blocks(None));
-        //dbg!(reflector.enumerate_descriptor_bindings(None));
-
-        let bindings = reflector
-            .enumerate_descriptor_bindings(None)
-            .map_err(|val| anyhow!(val.to_string()))?;
+            .expect("Invalid SPIRV");
 
         Ok(Shader {
             file: shader_file.to_string(),
-            shader: bytemuck::cast_vec(spirv),
-            cg_x: 0,
-            cg_y: 0,
-            cg_z: 0,
-            bindings,
-            push_constant_size,
+            shader: spirv,
+            bindings: info
+                .get_descriptor_sets()
+                .map_err(|err| anyhow::Error::msg(err.to_string()))?,
+            push_constant_range: info
+                .get_push_constant_range()
+                .map_err(|err| anyhow::Error::msg(err.to_string()))?,
+            compute_group_size: info.get_compute_group_size(),
         })
     }
 }

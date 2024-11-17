@@ -24,7 +24,6 @@ inline-spirv = { version = "0.2", default-features = false, features = [
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = "0.3"
 rspirv-reflect = "0.8"
-spirv-reflect = "0.2"
 parking_lot = "0.12"
 anyhow = "1.0"
 shaderc = "0.8"
