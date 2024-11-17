@@ -12,13 +12,11 @@ use anyhow::Result;
 use egui_winit::State;
 use std::fmt::Debug;
 use std::sync::Arc;
-use wgpu::Buffer;
 use wgpu::InstanceDescriptor;
 use wgpu::TextureFormat;
 use wgpu::TextureFormat::Bgra8UnormSrgb;
-use wgpu::{Texture, TextureView};
+use wgpu::TextureView;
 use winit::event::WindowEvent;
-use winit::event_loop::EventLoop;
 use winit::window::Window;
 
 mod encoder;
@@ -31,7 +29,6 @@ pub use encoder::*;
 pub use pipeline::*;
 pub use resources::*;
 pub use shader::*;
-pub use to_screen_pipeline::*;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -65,7 +62,7 @@ struct ToScreenPipelineDescriptor {
 }
 
 pub struct CoGr {
-    surface: wgpu::Surface,
+    surface: wgpu::Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
@@ -79,7 +76,6 @@ pub struct CoGr {
     last_to_screen_pipeline: Option<ToScreenPipeline>,
 
     // ui
-    context: egui::Context,
     renderer: egui_wgpu::Renderer,
     state: State,
     draw_cpu_profiler: bool,
@@ -88,10 +84,10 @@ pub struct CoGr {
 }
 
 impl CoGr {
-    pub fn new(window: &Arc<Window>, event_loop: &EventLoop<()>) -> Result<Self> {
+    pub fn new(window: Arc<Window>) -> Result<Self> {
         let instance = wgpu::Instance::new(InstanceDescriptor::default());
         info!("created instance");
-        let surface = unsafe { instance.create_surface(window.as_ref())? };
+        let surface = instance.create_surface(window.clone())?;
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
@@ -113,9 +109,11 @@ impl CoGr {
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 required_features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
-                    | Features::PUSH_CONSTANTS,
+                    | Features::PUSH_CONSTANTS
+                    | Features::SPIRV_SHADER_PASSTHROUGH,
                 required_limits: limits,
                 label: None,
+                memory_hints: wgpu::MemoryHints::Performance,
             },
             None, // Trace path
         ))?;
@@ -139,7 +137,7 @@ impl CoGr {
         };
         surface.configure(&device, &config);
 
-        let renderer = egui_wgpu::renderer::Renderer::new(&device, config.format, None, 1);
+        let renderer = egui_wgpu::Renderer::new(&device, config.format, None, 1, false);
         let context = egui::Context::default();
         context.set_style(Style {
             visuals: Visuals {
@@ -148,13 +146,25 @@ impl CoGr {
             },
             ..Default::default()
         });
-        let state = egui_winit::State::new(event_loop);
+
+        let viewport_id = context.viewport_id();
+        let native_pixels_per_point = context.native_pixels_per_point();
+
+        let state = egui_winit::State::new(
+            context,
+            viewport_id,
+            &window,
+            native_pixels_per_point,
+            None,
+            None,
+        );
 
         let profiler = GpuProfiler::new(GpuProfilerSettings {
             enable_timer_queries: true,
             enable_debug_groups: true,
             max_num_pending_frames: 3,
-        });
+        })
+        .unwrap();
 
         Ok(Self {
             surface,
@@ -168,13 +178,12 @@ impl CoGr {
             frame_timings: Vec::new(),
 
             renderer,
-            context,
             state,
             last_to_screen_texture_handle: None,
             last_to_screen_pipeline: None,
-            draw_cpu_profiler: false,
-            draw_gpu_profiler: false,
-            draw_user_ui: false,
+            draw_cpu_profiler: true,
+            draw_gpu_profiler: true,
+            draw_user_ui: true,
         })
     }
     pub fn get_encoder_for_draw(&mut self) -> Result<DrawEncoder> {
@@ -229,7 +238,8 @@ impl CoGr {
     }
 
     pub fn handle_window_event(&mut self, event: &WindowEvent) {
-        let _ = self.state.on_event(&self.context, event);
+        puffin::set_scopes_on(self.draw_cpu_profiler);
+        let _ = self.state.on_window_event(&self.window, event);
     }
     pub fn pipeline(&mut self, shader_file: &str) -> Result<Pipeline> {
         Ok(Pipeline::new(self, shader_file))

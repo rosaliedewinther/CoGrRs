@@ -5,12 +5,12 @@ use std::ops::{Deref, DerefMut};
 
 use anyhow::{Context, Result};
 use egui::Ui;
+use egui_wgpu::ScreenDescriptor;
 use wgpu_profiler::GpuTimerQueryResult;
 
 use crate::gpu::resources::init_texture_with_data;
 use crate::gpu::Pipeline;
 use bytemuck::{AnyBitPattern, NoUninit, Pod};
-use egui_wgpu::renderer::ScreenDescriptor;
 use tracing::info;
 use wgpu::util::DeviceExt;
 use wgpu::IndexFormat::Uint16;
@@ -63,7 +63,8 @@ impl<'a> DrawEncoder<'a> {
             .as_mut()
             .context("encoder not available")?;
 
-        ctx.profiler
+        let _ = ctx
+            .profiler
             .scope("to_screen", command_encoder, &ctx.device);
 
         let texture = ctx.resource_pool.grab_texture(to_screen_texture);
@@ -112,15 +113,17 @@ impl<'a> DrawEncoder<'a> {
             egui::Grid::new("gpu_timings_grid").show(ui, |ui| {
                 let mut time_sum = 0.0;
                 for timing in frame_timings {
-                    assert!(
-                        timing.nested_queries.is_empty(),
-                        "we dont ever wanna capture nested scopes"
-                    );
-                    let time = timing.time.end - timing.time.start;
-                    ui.label(format!("{}:", timing.label,));
-                    ui.label(format!("{:.4}ms", time * 1000.0));
-                    ui.end_row();
-                    time_sum += time;
+                    if let Some(time) = &timing.time {
+                        assert!(
+                            timing.nested_queries.is_empty(),
+                            "we don't ever want to capture nested scopes"
+                        );
+                        let time = time.end - time.start;
+                        ui.label(format!("{}:", timing.label,));
+                        ui.label(format!("{:.4}ms", time * 1000.0));
+                        ui.end_row();
+                        time_sum += time;
+                    }
                 }
                 ui.separator();
                 ui.separator();
@@ -136,24 +139,29 @@ impl<'a> DrawEncoder<'a> {
 
     pub fn draw_ui(&mut self, ui_builder: impl FnOnce(&egui::Context)) -> Result<()> {
         puffin::profile_function!();
-        let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
-        let ctx = &mut encoder.gpu_context;
-        let command_encoder = encoder
-            .command_encoder
-            .as_mut()
-            .context("encoder not available")?;
+        {
+            if let Some(encoder) = &mut self.encoder {
+                //let encoder = &mut self.encoder.as_mut().expect("there was no encoder");
+                let ctx = &mut encoder.gpu_context;
+                if let Some(command_encoder) = &mut encoder.command_encoder {
+                    // let command_encoder = encoder
+                    //     .command_encoder
+                    //     .as_mut()
+                    //     .context("encoder not available")?;
 
-        self.gpu_context
-            .profiler
-            .scope("draw ui", command_encoder, &ctx.device);
+                    let _ = ctx.profiler.scope("draw ui", command_encoder, &ctx.device);
+                    let state = &mut ctx.state;
 
-        let screen_descriptor = ScreenDescriptor {
-            size_in_pixels: [ctx.config.width, ctx.config.height],
-            pixels_per_point: 1f32,
-        };
-        let full_output =
-            ctx.context
-                .run(ctx.state.take_egui_input(ctx.window.as_ref()), |egui_ctx| {
+                    let screen_descriptor = ScreenDescriptor {
+                        size_in_pixels: [ctx.config.width, ctx.config.height],
+                        pixels_per_point: state.egui_ctx().pixels_per_point(),
+                    };
+
+                    let input = state.take_egui_input(ctx.window.as_ref());
+
+                    let egui_ctx = state.egui_ctx();
+
+                    state.egui_ctx().begin_pass(input);
                     egui::TopBottomPanel::top("top_bar").show(egui_ctx, |ui| {
                         ui.horizontal_wrapped(|ui| {
                             if ui
@@ -183,37 +191,52 @@ impl<'a> DrawEncoder<'a> {
                     if ctx.draw_user_ui {
                         ui_builder(egui_ctx);
                     }
-                });
+                    let full_output = state.egui_ctx().end_pass();
 
-        let paint_jobs = ctx.context.tessellate(full_output.shapes);
-        let tdelta = full_output.textures_delta;
+                    let paint_jobs = ctx
+                        .state
+                        .egui_ctx()
+                        .tessellate(full_output.shapes, ctx.state.egui_ctx().pixels_per_point());
+                    let t_delta = full_output.textures_delta;
 
-        {
-            for d in tdelta.set {
-                ctx.renderer
-                    .update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
+                    {
+                        for d in t_delta.set {
+                            ctx.renderer
+                                .update_texture(&ctx.device, &ctx.queue, d.0, &d.1);
+                        }
+                        {
+                            ctx.renderer.update_buffers(
+                                &ctx.device,
+                                &ctx.queue,
+                                command_encoder,
+                                &paint_jobs,
+                                &screen_descriptor,
+                            );
+                        }
+
+                        let render_pass =
+                            command_encoder.begin_render_pass(&RenderPassDescriptor {
+                                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                                    view: &self.texture_view,
+                                    resolve_target: None,
+                                    ops: wgpu::Operations {
+                                        load: wgpu::LoadOp::Load,
+                                        store: wgpu::StoreOp::Store,
+                                    },
+                                })],
+                                label: Some("Ui render command encoder"),
+                                depth_stencil_attachment: None,
+                                timestamp_writes: None,
+                                occlusion_query_set: None,
+                            });
+                        ctx.renderer.render(
+                            &mut render_pass.forget_lifetime(),
+                            paint_jobs.as_slice(),
+                            &screen_descriptor,
+                        );
+                    }
+                }
             }
-            ctx.renderer.update_buffers(
-                &ctx.device,
-                &ctx.queue,
-                command_encoder,
-                &paint_jobs,
-                &screen_descriptor,
-            );
-
-            let mut render_pass = command_encoder.begin_render_pass(&RenderPassDescriptor {
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
-            ctx.renderer
-                .render(&mut render_pass, paint_jobs.as_slice(), &screen_descriptor);
         }
 
         Ok(())
@@ -241,9 +264,11 @@ impl Encoder<'_> {
             .as_mut()
             .context("encoder not available")?;
 
-        self.gpu_context
-            .profiler
-            .scope(&pipeline.pipeline_name, encoder, &self.gpu_context.device);
+        let _ = self.gpu_context.profiler.scope(
+            &pipeline.pipeline_name,
+            encoder,
+            &self.gpu_context.device,
+        );
 
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: None,
@@ -320,7 +345,7 @@ impl Encoder<'_> {
             .context("encoder not available")?;
 
         let buffer = self.gpu_context.resource_pool.grab_buffer(buffer);
-        self.gpu_context.profiler.scope(
+        let _ = self.gpu_context.profiler.scope(
             format!("Set buffer data: {}", buffer.name),
             encoder,
             &self.gpu_context.device,
@@ -366,7 +391,7 @@ impl Encoder<'_> {
 
         let texture = self.gpu_context.resource_pool.grab_texture(texture);
 
-        self.gpu_context.profiler.scope(
+        let _ = self.gpu_context.profiler.scope(
             format!("set texture data: {}", texture.name),
             encoder,
             &self.gpu_context.device,

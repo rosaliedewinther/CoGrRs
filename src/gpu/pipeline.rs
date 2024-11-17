@@ -85,8 +85,7 @@ impl Pipeline {
                 })
         };
 
-        println!("{:#?}", shader
-        .bindings);
+        println!("{:#?}", shader.bindings);
 
         let bind_group_layout_entries = shader
             .bindings
@@ -145,6 +144,8 @@ impl Pipeline {
                     layout: Some(&pipeline_layout),
                     module: &cs_module,
                     entry_point: "main",
+                    compilation_options: Default::default(),
+                    cache: None,
                 });
 
         Pipeline {

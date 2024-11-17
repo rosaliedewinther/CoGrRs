@@ -75,7 +75,8 @@ impl ToScreenPipeline {
             vertex: VertexState {
                 module: &v_shader,
                 entry_point: "main", // 1.
-                buffers: &[],        // 2.
+                buffers: &[],
+                compilation_options: Default::default(), // 2.
             },
             fragment: Some(FragmentState {
                 // 3.
@@ -87,6 +88,7 @@ impl ToScreenPipeline {
                     blend: Some(BlendState::REPLACE),
                     write_mask: ColorWrites::ALL,
                 })],
+                compilation_options: Default::default(),
             }),
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::TriangleList, // 1.
@@ -106,7 +108,8 @@ impl ToScreenPipeline {
                 mask: !0,                         // 3.
                 alpha_to_coverage_enabled: false, // 4.
             },
-            multiview: None, // 5.
+            multiview: None,
+            cache: None, // 5.
         })
     }
 

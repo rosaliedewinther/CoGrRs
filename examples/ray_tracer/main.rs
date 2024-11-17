@@ -1,8 +1,9 @@
 use std::{f32::consts::PI, mem::size_of};
 
-use bvh::{Bvh, BVHNode};
+use bvh::{BVHNode, Bvh};
 use cogrrs::{
-    anyhow::Result, div_ceil, egui, main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureRes, glam::Vec3, glam::vec3, bytemuck::Zeroable, bytemuck::Pod, TextureFormat
+    anyhow::Result, bytemuck::Pod, bytemuck::Zeroable, div_ceil, egui, glam::vec3, glam::Vec3,
+    main_loop_run, CoGr, Game, Input, Pipeline, ResourceHandle, TextureFormat, TextureRes,
 };
 
 mod bvh;

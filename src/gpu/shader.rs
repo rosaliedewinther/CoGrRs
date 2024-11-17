@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
+use bytemuck::cast_slice;
 use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
-
-use crate::gpu::shader;
 
 pub struct Shader {
     pub file: String,
@@ -30,7 +29,7 @@ impl Shader {
         //let spirv = compile_hlsl(shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
         //
 
-        let mut compiler = shaderc::Compiler::new().unwrap();
+        let compiler = shaderc::Compiler::new().unwrap();
         let mut options = shaderc::CompileOptions::new().unwrap();
         options.set_source_language(shaderc::SourceLanguage::HLSL);
         //options.add_macro_definition("EP", Some("main"));
@@ -43,11 +42,17 @@ impl Shader {
                 Some(&options),
             )
             .unwrap()
-            .as_binary_u8()
+            .as_binary()
             .to_vec();
 
-        let reflector =
-            ShaderModule::load_u8_data(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;
+        let info = rspirv_reflect::Reflection::new_from_spirv(&cast_slice(spirv.as_slice()))
+            .expect("Invalid SPIR-V");
+        dbg!(info
+            .get_descriptor_sets()
+            .expect("Failed to extract descriptor bindings"));
+
+        let reflector = ShaderModule::load_u8_data(cast_slice(spirv.as_slice()))
+            .map_err(|val| anyhow!(val.to_string()))?;
 
         let push_constant_blocks = reflector
             .enumerate_push_constant_blocks(None)
@@ -74,7 +79,7 @@ impl Shader {
 
         Ok(Shader {
             file: shader_file.to_string(),
-            shader: spirv,
+            shader: bytemuck::cast_vec(spirv),
             cg_x: 0,
             cg_y: 0,
             cg_z: 0,

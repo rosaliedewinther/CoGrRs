@@ -1,126 +1,152 @@
-use crate::CoGr;
-use crate::Input;
 use anyhow::Result;
+use glam::UVec2;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
-use winit::dpi::PhysicalPosition;
-use winit::event::{Event, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::WindowBuilder;
+use winit::application::ApplicationHandler;
+use winit::event::WindowEvent;
+use winit::event_loop::ActiveEventLoop;
+use winit::event_loop::EventLoop;
+use winit::window::Fullscreen;
+use winit::window::Window;
+use winit::window::WindowAttributes;
 
-pub trait Game: Sized {
-    fn on_init(gpu: &mut CoGr) -> Result<Self>;
-    fn on_tick(&mut self, gpu: &mut CoGr, dt: f32) -> Result<()>;
-    fn on_render(&mut self, gpu: &mut CoGr, input: &Input, dt: f32) -> Result<()>;
+use crate::controls;
+use crate::CoGr;
+
+pub enum GameState {
+    Continue,
+    Break,
 }
 
-pub fn main_loop_run<T>(ticks_per_s: f32) -> Result<()>
+pub trait Game: Sized {
+    fn on_init(cogr: &mut CoGr) -> Result<Self>;
+    fn on_render(&mut self, cogr: &mut CoGr, dt: f32) -> Result<GameState>;
+    fn on_resize(&mut self, cogr: &mut CoGr, new_dimensions: UVec2) -> Result<()>;
+}
+
+struct GameApplicationHandler<T: Game> {
+    window: Option<Arc<Window>>,
+    game: Option<T>,
+    cogr: Option<CoGr>,
+    on_render_timer: Option<Instant>,
+}
+
+impl<T: Game> Default for GameApplicationHandler<T> {
+    fn default() -> Self {
+        Self {
+            window: None,
+            game: None,
+            cogr: None,
+            on_render_timer: None,
+        }
+    }
+}
+
+impl<T: Game> ApplicationHandler for GameApplicationHandler<T> {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if self.window.is_none() {
+            info!("Init window");
+            self.window = Some(Arc::new(
+                event_loop
+                    .create_window(
+                        WindowAttributes::default()
+                            .with_fullscreen(Some(Fullscreen::Borderless(None))),
+                    )
+                    .unwrap(),
+            ));
+            info!("Created window");
+        }
+        if self.cogr.is_none() {
+            info!("Init cogr");
+            self.cogr = Some(CoGr::new(self.window.clone().unwrap()).unwrap());
+            info!("Created cogr");
+        }
+        if self.game.is_none() {
+            info!("Init game");
+            self.game = Some(T::on_init(self.cogr.as_mut().unwrap()).unwrap());
+            info!("Created game");
+        }
+
+        if self.on_render_timer.is_none() {
+            self.on_render_timer = Some(Instant::now());
+        }
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: WindowEvent,
+    ) {
+        crate::window::input_window_event(&event);
+        if let Some(cogr) = &mut self.cogr {
+            cogr.handle_window_event(&event);
+        }
+
+        match event {
+            WindowEvent::Resized(size) => {
+                puffin::profile_scope!("Resize");
+                if let Some(game) = &mut self.game {
+                    if let Some(cogr) = &mut self.cogr {
+                        game.on_resize(
+                            cogr,
+                            UVec2 {
+                                x: size.width,
+                                y: size.height,
+                            },
+                        )
+                        .unwrap()
+                    }
+                }
+            }
+            WindowEvent::RedrawRequested => {
+                puffin::GlobalProfiler::lock().new_frame();
+                puffin::profile_scope!("Render");
+
+                let dt = if let Some(timer) = self.on_render_timer {
+                    timer.elapsed().as_secs_f32()
+                } else {
+                    // To prevent we set dt to 0 when we don't know the time
+                    0.0
+                };
+                self.on_render_timer = Some(Instant::now());
+
+                if let Some(game) = &mut self.game {
+                    if let Some(cogr) = &mut self.cogr {
+                        let result = game.on_render(cogr, dt).unwrap();
+                        if matches!(result, GameState::Break) {
+                            event_loop.exit();
+                        }
+                    }
+                    crate::window::input::input_update();
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            _ => {
+                //dbg!(event);
+            }
+        }
+    }
+}
+
+pub fn main_loop_run<T>() -> Result<()>
 where
     T: 'static + Game,
 {
     let subscriber = FmtSubscriber::builder()
-        // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
-        // will be written to stdout.
         .with_max_level(Level::TRACE)
-        // completes the builder.
         .finish();
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    puffin::set_scopes_on(true);
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     info!("created event loop");
-    let monitor = event_loop
-        .primary_monitor()
-        .expect("We don't support having no monitors");
-    info!("created monitor");
-    let window_builder = WindowBuilder::new()
-        .with_resizable(false)
-        .with_fullscreen(Some(winit::window::Fullscreen::Borderless(Some(monitor))));
-    info!("created window builder");
-    let window = Arc::new(
-        window_builder
-            .build(&event_loop)
-            .expect("unable to build window"),
-    );
-    info!("created window");
-    let mut window_input = Input::new();
-    info!("created window input");
-    let mut on_tick_timer = Instant::now();
-    let mut on_render_timer = Instant::now();
-    let mut gpu = CoGr::new(&window, &event_loop)?;
-    info!("created gpu");
-    let mut game = T::on_init(&mut gpu)?;
-    info!("created game");
 
-    event_loop.run(move |event, _, control_flow| {
-        puffin::profile_function!();
-        match event {
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == window.id() => {
-                gpu.handle_window_event(event);
-                match event {
-                    WindowEvent::CursorMoved { position, .. } => {
-                        window_input.update_cursor_moved(&PhysicalPosition::<f32> {
-                            x: position.x as f32,
-                            y: position.y as f32,
-                        });
-                    }
-                    WindowEvent::CursorEntered { .. } => {
-                        window_input.update_cursor_entered();
-                    }
-                    WindowEvent::CursorLeft { .. } => {
-                        window_input.update_cursor_left();
-                    }
-                    WindowEvent::MouseInput { state, button, .. } => {
-                        window_input.update_mouse_input(state, button);
-                    }
-                    WindowEvent::MouseWheel { delta, .. } => {
-                        window_input.update_mouse_wheel(delta);
-                    }
-                    WindowEvent::KeyboardInput { input, .. } => {
-                        window_input.update_keyboard_input(input, control_flow);
-                    }
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-
-                    _ => {}
-                }
-            }
-            Event::RedrawRequested(_) => {
-                puffin::profile_scope!("Render");
-                puffin::GlobalProfiler::lock().new_frame();
-                let dt = on_render_timer.elapsed().as_secs_f32();
-                on_render_timer = Instant::now();
-                match game.on_render(&mut gpu, &window_input, dt) {
-                    Ok(_) => {
-                        window_input.update();
-                    }
-                    Err(err) => {
-                        println!("{}", err);
-                        *control_flow = ControlFlow::Exit;
-                    }
-                };
-            }
-            Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
-                window.request_redraw();
-            }
-            _ => {
-                if on_tick_timer.elapsed().as_secs_f32() * ticks_per_s > 1f32 {
-                    puffin::profile_scope!("Tick");
-                    if let Err(err) = game.on_tick(&mut gpu, on_tick_timer.elapsed().as_secs_f32())
-                    {
-                        println!("{}", err);
-                        *control_flow = ControlFlow::Exit;
-                    }
-                    on_tick_timer = Instant::now();
-                }
-            }
-        }
-    });
+    event_loop
+        .run_app(&mut GameApplicationHandler::<T>::default())
+        .map_err(|err| anyhow::Error::from(err))
 }

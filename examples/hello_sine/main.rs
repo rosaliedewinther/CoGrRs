@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use cogrrs::{
-    anyhow::Result, div_ceil, main_loop_run, tracing::info, CoGr, Game, Input, Pipeline,
+    anyhow::Result, div_ceil, main_loop_run, tracing::info, CoGr, Game, GameState, Input, Pipeline,
     ResourceHandle, TextureFormat, TextureRes,
 };
 
@@ -30,7 +30,7 @@ impl Game for HelloSine {
         })
     }
 
-    fn on_render(&mut self, gpu: &mut CoGr, _input: &Input, dt: f32) -> Result<()> {
+    fn on_render(&mut self, gpu: &mut CoGr, dt: f32) -> Result<GameState> {
         let width = gpu.config.width;
         let height = gpu.config.height;
         let mut encoder = gpu.get_encoder_for_draw()?;
@@ -51,15 +51,15 @@ impl Game for HelloSine {
         )?;
         encoder.to_screen(&self.to_draw_texture, TextureFormat::Rgba32Float)?;
 
-        Ok(())
+        Ok(GameState::Continue)
     }
 
-    fn on_tick(&mut self, _gpu: &mut CoGr, _dt: f32) -> Result<()> {
-        Ok(())
+    fn on_resize(&mut self, cogr: &mut CoGr, new_dimensions: glam::UVec2) -> Result<()> {
+        todo!()
     }
 }
 
 fn main() -> Result<()> {
-    main_loop_run::<HelloSine>(10f32)?;
+    main_loop_run::<HelloSine>()?;
     Ok(())
 }

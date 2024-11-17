@@ -6,25 +6,30 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winit = { version = "0.28", default-features = false }
+winit = { version = "0.30", default-features = false }
 wgpu = { version = "22.1", default-features = false, features = [
     "spirv",
     "vulkan-portability",
 ] }
 wgpu-profiler = "0.18"
 pollster = { version = "0.4", default-features = false }
-bytemuck = { version = "1.7", default-features = false, features = ["derive"] }
+bytemuck = { version = "1.7", default-features = false, features = [
+    "derive",
+    "extern_crate_alloc",
+] }
 inline-spirv = { version = "0.2", default-features = false, features = [
     "hlsl",
 ] }
 #log = { version = "0.4", default-features = false }
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = "0.3"
+rspirv-reflect = "0.8"
 spirv-reflect = "0.2"
 parking_lot = "0.12"
 anyhow = "1.0"
 shaderc = "0.8"
 itertools = "0.13"
+gilrs = "0.11"
 
 glam = { version = "0.29", features = ["bytemuck"] }
 puffin = "0.19"
