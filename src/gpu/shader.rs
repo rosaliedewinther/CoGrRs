@@ -1,6 +1,7 @@
-
 use anyhow::{anyhow, Result};
 use spirv_reflect::{types::ReflectDescriptorBinding, ShaderModule};
+
+use crate::gpu::shader;
 
 pub struct Shader {
     pub file: String,
@@ -21,23 +22,29 @@ impl Shader {
         //    Err(err) => panic!("{}", err),
         //};
         //let result = validate_dxil(&dxil);
-//
+        //
         //if let Some(err) = result.err() {
         //    println!("validation failed: {}", err);
         //}
-//
+        //
         //let spirv = compile_hlsl(shader_file, &code, "main", "cs_6_5", &["-spirv"], &[])?; //TODO add defines
-//
+        //
 
         let mut compiler = shaderc::Compiler::new().unwrap();
         let mut options = shaderc::CompileOptions::new().unwrap();
         options.set_source_language(shaderc::SourceLanguage::HLSL);
         //options.add_macro_definition("EP", Some("main"));
-        let spirv =  compiler.compile_into_spirv(
-            &code, shaderc::ShaderKind::Compute,
-            shader_file, "main", Some(&options)).unwrap().as_binary_u8().to_vec();
-        
-
+        let spirv = compiler
+            .compile_into_spirv(
+                &code,
+                shaderc::ShaderKind::Compute,
+                shader_file,
+                "main",
+                Some(&options),
+            )
+            .unwrap()
+            .as_binary_u8()
+            .to_vec();
 
         let reflector =
             ShaderModule::load_u8_data(spirv.as_slice()).map_err(|val| anyhow!(val.to_string()))?;
@@ -53,11 +60,13 @@ impl Shader {
         };
 
         //let compute_group_sizes = dbg!(reflector.enumerate_input_variables(None));
-        //dbg!(reflector.enumerate_descriptor_bindings(None));
+        //dbg!(code);
+        //dbg!(shader_file);
         //dbg!(reflector.enumerate_descriptor_sets(None));
         //dbg!(reflector.enumerate_entry_points());
         //dbg!(reflector.enumerate_output_variables(None));
         //dbg!(reflector.enumerate_push_constant_blocks(None));
+        //dbg!(reflector.enumerate_descriptor_bindings(None));
 
         let bindings = reflector
             .enumerate_descriptor_bindings(None)

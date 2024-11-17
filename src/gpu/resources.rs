@@ -407,6 +407,7 @@ pub(crate) fn init_texture_with_data(
                 | TextureUsages::COPY_SRC,
             view_formats: &[format],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         bytemuck::cast_slice(data),
     );
 

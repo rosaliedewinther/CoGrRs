@@ -4,7 +4,8 @@ use egui::Visuals;
 use tracing::info;
 use wgpu::Features;
 use wgpu_profiler::GpuProfiler;
-use wgpu_profiler::GpuTimerScopeResult;
+use wgpu_profiler::GpuProfilerSettings;
+use wgpu_profiler::GpuTimerQueryResult;
 
 use self::to_screen_pipeline::ToScreenPipeline;
 use anyhow::Result;
@@ -27,10 +28,10 @@ mod shader;
 mod to_screen_pipeline;
 
 pub use encoder::*;
-pub use to_screen_pipeline::*;
 pub use pipeline::*;
-pub use shader::*;
 pub use resources::*;
+pub use shader::*;
+pub use to_screen_pipeline::*;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -71,7 +72,7 @@ pub struct CoGr {
     window: Arc<Window>,
 
     profiler: GpuProfiler,
-    frame_timings: Vec<GpuTimerScopeResult>,
+    frame_timings: Vec<GpuTimerQueryResult>,
 
     resource_pool: ResourcePool,
     last_to_screen_texture_handle: Option<ResourceHandle>,
@@ -97,7 +98,11 @@ impl CoGr {
             force_fallback_adapter: false,
         }))
         .expect("can't initialize gpu adapter");
-        info!("created adapter");
+        info!("{:?}", surface.get_capabilities(&adapter));
+        info!("{:?}", adapter.features());
+        info!("{:?}", adapter.get_info());
+        info!("{:?}", adapter.limits());
+        info!("{:?}", adapter.get_downlevel_capabilities());
         let limits = wgpu::Limits {
             max_push_constant_size: 128,
             max_storage_buffers_per_shader_stage: 16,
@@ -107,13 +112,15 @@ impl CoGr {
         };
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
-                features: Features::SPIRV_SHADER_PASSTHROUGH | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES | Features::PUSH_CONSTANTS,
-                limits,
+                required_features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
+                    | Features::PUSH_CONSTANTS,
+                required_limits: limits,
                 label: None,
             },
             None, // Trace path
         ))?;
-        info!("created device");
+        info!("{:?}", device.features());
+        info!("{:?}", device.limits());
 
         info!(
             "Surface capabilities: {:?}",
@@ -128,6 +135,7 @@ impl CoGr {
             present_mode: wgpu::PresentMode::Immediate,
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
             view_formats: vec![Bgra8UnormSrgb],
+            desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
 
@@ -142,7 +150,11 @@ impl CoGr {
         });
         let state = egui_winit::State::new(event_loop);
 
-        let profiler = GpuProfiler::new(&adapter, &device, &queue, 4);
+        let profiler = GpuProfiler::new(GpuProfilerSettings {
+            enable_timer_queries: true,
+            enable_debug_groups: true,
+            max_num_pending_frames: 3,
+        });
 
         Ok(Self {
             surface,
